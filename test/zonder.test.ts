@@ -2,7 +2,7 @@ import { Address, parseAbiItem } from 'viem';
 import { arbitrum, mainnet } from 'viem/chains';
 import { describe, expect, it } from 'vitest';
 
-import { zonder } from '../../src/lib/zonder';
+import { zonder } from '../src/lib/zonder';
 import { addrA, addrB } from './utils';
 
 describe('zonder configuration', () => {

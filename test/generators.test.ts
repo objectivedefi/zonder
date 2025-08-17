@@ -2,8 +2,8 @@ import { parseAbiItem } from 'viem';
 import { arbitrum, mainnet } from 'viem/chains';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { buildConfig } from '../../src/lib/buildConfig';
-import { generateSchema } from '../../src/lib/generateSchema';
+import { buildConfig } from '../src/lib/buildConfig';
+import { generateSchema } from '../src/lib/generateSchema';
 import { addrA, addrB } from './utils';
 
 beforeEach(() => {

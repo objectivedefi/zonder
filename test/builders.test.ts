@@ -6,7 +6,7 @@ import {
   buildChains,
   buildContractChainAddressConfig,
   buildContractConfig,
-} from '../../src/lib/buildConfig';
+} from '../src/lib/buildConfig';
 import { addrA, addrB } from './utils';
 
 // Mock environment variables
