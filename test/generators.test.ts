@@ -178,10 +178,10 @@ describe('generateSchema', () => {
     expect(schema).toContain('evt_value: t.bigint');
 
     // Check indexes for address fields
-    expect(schema).toContain("evt_fromIdx: index().using('btree', t.evt_from)");
-    expect(schema).toContain("evt_toIdx: index().using('btree', t.evt_to)");
-    expect(schema).toContain("evt_ownerIdx: index().using('btree', t.evt_owner)");
-    expect(schema).toContain("evt_spenderIdx: index().using('btree', t.evt_spender)");
+    expect(schema).toContain("evt_fromIdx: index().using('btree', t.chainId, t.evt_from)");
+    expect(schema).toContain("evt_toIdx: index().using('btree', t.chainId, t.evt_to)");
+    expect(schema).toContain("evt_ownerIdx: index().using('btree', t.chainId, t.evt_owner)");
+    expect(schema).toContain("evt_spenderIdx: index().using('btree', t.chainId, t.evt_spender)");
   });
 
   it('should use composite index for chainId and timestamp', async () => {

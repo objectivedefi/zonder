@@ -44,7 +44,8 @@ export async function generateSchema<
       const addressIndexes = event.inputs
         .filter((input: any) => input.type === 'address')
         .map(
-          (input: any) => `   evt_${input.name}Idx: index().using('btree', t.evt_${input.name}),`,
+          (input: any) =>
+            `   evt_${input.name}Idx: index().using('btree', t.chainId, t.evt_${input.name}),`,
         )
         .join('\n');
       eventTables += `
