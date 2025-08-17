@@ -48,7 +48,7 @@ export function buildContractChainAddressConfig<
   config: ZonderConfig<TChains, TContracts>,
   chainName: keyof TChains,
   contract: keyof TContracts,
-): AddressConfig {
+): AddressConfig | null {
   const { factoryDeployed, addresses } = config;
   const address = addresses[chainName][contract];
   const factoryConfig = factoryDeployed?.[contract];
@@ -67,9 +67,8 @@ export function buildContractChainAddressConfig<
     const { event, parameter, deployedBy } = factoryConfig;
     const factoryAddress = addresses[chainName][deployedBy];
     if (!factoryAddress) {
-      throw new Error(
-        `Contract ${String(contract)} is configured as a factory-deployed contract on chain ${String(chainName)}, but the factory ${String(deployedBy)} is not configured`,
-      );
+      // Factory not configured on this chain - factory-deployed contract can't exist here
+      return null;
     }
 
     return {
@@ -81,7 +80,26 @@ export function buildContractChainAddressConfig<
     };
   }
 
-  throw new Error(`Contract ${String(contract)} is not configured on chain ${String(chainName)}`);
+  // Contract not configured on this chain - this is acceptable
+  return null;
+}
+
+function resolveStartBlock<
+  TChains extends Record<string, any>,
+  TContracts extends Record<string, any>,
+>(
+  startBlocks: ZonderConfig<TChains, TContracts>['startBlocks'],
+  chainName: string,
+  contractName: string,
+): number {
+  const chainStartBlocks = startBlocks[chainName];
+
+  if (!chainStartBlocks) {
+    throw new Error(`No start blocks configured for chain ${chainName}`);
+  }
+
+  // Per-contract start blocks with default fallback
+  return chainStartBlocks[contractName] ?? chainStartBlocks.default;
 }
 
 export function buildContractConfig<
@@ -91,13 +109,22 @@ export function buildContractConfig<
   const { chains, contracts, startBlocks } = config;
 
   const ponderChain = Object.fromEntries(
-    Object.entries(chains).map(([chainName]) => [
-      chainName,
-      {
-        ...buildContractChainAddressConfig(config, chainName, contract),
-        startBlock: startBlocks[chainName],
-      },
-    ]),
+    Object.entries(chains)
+      .map(([chainName]) => {
+        const addressConfig = buildContractChainAddressConfig(config, chainName, contract);
+        if (!addressConfig) {
+          // Contract not configured on this chain, skip it
+          return null;
+        }
+        return [
+          chainName,
+          {
+            ...addressConfig,
+            startBlock: resolveStartBlock(startBlocks, chainName, String(contract)),
+          },
+        ];
+      })
+      .filter((entry) => entry !== null),
   );
 
   return {

@@ -21,7 +21,7 @@ Object.entries(zonderConfig.contracts).forEach(([contractName, abi]) => {
 
       const table = (schema as any)[contractName][eventDefinition.name];
       const eventArgs = Object.fromEntries(
-        Object.entries(event.args).map(([key, value]) => [
+        Object.entries(event.args || {}).map(([key, value]) => [
           \`evt_\${key}\`,
           eventDefinition.inputs
             .find((e) => e.name === key)!

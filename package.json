@@ -1,6 +1,6 @@
 {
   "name": "zonder",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Ergonomic Ponder framework for multichain event extraction",
   "main": "dist/lib/index.js",
   "types": "dist/lib/index.d.ts",
@@ -42,7 +42,7 @@
     "evm",
     "multichain"
   ],
-  "author": "Objective Labs <hello@objectivelabs.io>",
+  "author": "Objective Labs <gm@objectivelabs.io>",
   "license": "MIT",
   "repository": {
     "type": "git",

@@ -79,8 +79,8 @@ describe('buildContractChainAddressConfig', () => {
       },
     },
     startBlocks: {
-      mainnet: 1000000,
-      arbitrum: 2000000,
+      mainnet: { default: 1000000 },
+      arbitrum: { default: 2000000 },
     },
   } as const;
 
@@ -128,7 +128,7 @@ describe('buildContractChainAddressConfig', () => {
     );
   });
 
-  it('should throw if factory address is missing', () => {
+  it('should return null if factory address is missing', () => {
     const configMissingFactory = {
       ...config,
       addresses: {
@@ -137,9 +137,8 @@ describe('buildContractChainAddressConfig', () => {
       },
     } as const;
 
-    expect(() =>
-      buildContractChainAddressConfig(configMissingFactory, 'arbitrum', 'Token'),
-    ).toThrow('the factory Factory is not configured');
+    const result = buildContractChainAddressConfig(configMissingFactory, 'arbitrum', 'Token');
+    expect(result).toBeNull();
   });
 
   it('should handle array of addresses', () => {
@@ -181,8 +180,8 @@ describe('buildContractConfig', () => {
       arbitrum: { Token: addrB },
     },
     startBlocks: {
-      mainnet: 1000000,
-      arbitrum: 2000000,
+      mainnet: { default: 1000000 },
+      arbitrum: { default: 2000000 },
     },
   };
 
@@ -202,5 +201,69 @@ describe('buildContractConfig', () => {
         },
       },
     });
+  });
+
+  it('should handle simple startBlocks format with default only', () => {
+    const simpleConfig = {
+      ...contractTestConfig,
+      startBlocks: {
+        mainnet: { default: 5000000 },
+        arbitrum: { default: 6000000 },
+      },
+    };
+
+    const result = buildContractConfig(simpleConfig, 'Token');
+
+    expect((result.chain as any).mainnet.startBlock).toBe(5000000);
+    expect((result.chain as any).arbitrum.startBlock).toBe(6000000);
+  });
+
+  it('should handle startBlocks format with per-contract blocks', () => {
+    const granularConfig = {
+      ...contractTestConfig,
+      contracts: { Token: mockAbi, EVault: mockAbi },
+      addresses: {
+        mainnet: { Token: addrA, EVault: addrB },
+        arbitrum: { Token: addrA, EVault: addrB },
+      },
+      startBlocks: {
+        mainnet: {
+          Token: 1500000,
+          EVault: 1600000,
+          default: 1000000,
+        },
+        arbitrum: {
+          Token: 2500000,
+          default: 2000000,
+        },
+      },
+    };
+
+    const tokenResult = buildContractConfig(granularConfig, 'Token');
+    expect((tokenResult.chain as any).mainnet.startBlock).toBe(1500000);
+    expect((tokenResult.chain as any).arbitrum.startBlock).toBe(2500000);
+
+    const evaultResult = buildContractConfig(granularConfig, 'EVault');
+    expect((evaultResult.chain as any).mainnet.startBlock).toBe(1600000);
+    expect((evaultResult.chain as any).arbitrum.startBlock).toBe(2000000); // uses default
+  });
+
+  it('should use default value when contract not specified', () => {
+    const configWithDefault = {
+      ...contractTestConfig,
+      startBlocks: {
+        mainnet: {
+          default: 9999999,
+        },
+        arbitrum: {
+          default: 8888888,
+        },
+      },
+    };
+
+    const result = buildContractConfig(configWithDefault, 'Token');
+
+    expect((result.chain as any).mainnet.startBlock).toBe(9999999);
+    expect((result.chain as any).arbitrum.startBlock).toBe(8888888);
   });
 });

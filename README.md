@@ -17,8 +17,10 @@ pnpm add zonder
 
 ```typescript
 // 3. Add your ABIs in abis/
-// File: abis/EVault.abi
+// File: abis/EVault.ts (note: .ts extension, not .abi)
 export default [...] as const;
+
+// 💡 Use `pnpm zonder take-abi` to extract from Foundry (recommended)
 ```
 
 ```typescript
@@ -32,19 +34,61 @@ export const zonderConfig = {
   chains: { mainnet },
   contracts: { EVault },
   addresses: { mainnet: { EVault: '0x...' } },
-  startBlocks: { mainnet: 20000000 },
+  startBlocks: { mainnet: { default: 20000000 } },
 } as const satisfies ZonderConfig<any, any>;
 
 export default zonder(zonderConfig);
 ```
 
 ```bash
-# 5. Generate schema and event handlers
+# 5. Auto-discover deployment blocks (recommended)
+pnpm zonder find-start-blocks
+# Copy the output to your startBlocks config
+
+# 6. Generate schema and event handlers
 pnpm zonder generate
 
-# 6. Start indexing
+# 7. Start indexing
 pnpm ponder dev
 ```
+
+## CLI Commands
+
+### `generate`
+
+Generate Ponder schema and event handlers from your config:
+
+```bash
+pnpm zonder generate
+```
+
+### `take-abi`
+
+Extract ABIs from Foundry build artifacts:
+
+```bash
+pnpm zonder take-abi path/to/foundry/out ContractA ContractB
+# Generates: abis/ContractA.ts, abis/ContractB.ts
+```
+
+### `find-start-blocks`
+
+Auto-discover deployment blocks for all contracts:
+
+```bash
+pnpm zonder find-start-blocks
+# Outputs: startBlocks config to copy-paste
+# Generates: start-blocks.json
+```
+
+Features:
+
+- **Smart skipping**: Only searches for contracts not already configured
+- **Incremental discovery**: Preserves existing blocks, adds only new ones
+- **Binary search**: Fast deployment block discovery using efficient algorithm
+- **Multi-chain support**: Works across all configured chains
+
+> **Performance tip**: Granular start blocks speed up historical backfill indexing by skipping blocks before contract deployment.
 
 ## Features
 
@@ -63,6 +107,18 @@ factoryDeployed: {
     event: parseAbiItem('event TokenCreated(address indexed token)'),
     parameter: 'token',
     deployedBy: 'MyFactory',
+  },
+}
+
+// Granular start blocks for performance
+startBlocks: {
+  mainnet: {
+    EVault: 18500000,      // Specific start block for EVault
+    Factory: 18000000,     // Specific start block for Factory
+    default: 17000000,     // Default for other contracts
+  },
+  arbitrum: {
+    default: 150000000,    // All contracts start here
   },
 }
 

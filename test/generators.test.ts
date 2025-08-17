@@ -32,8 +32,8 @@ describe('buildConfig', () => {
       arbitrum: { Token: addrB },
     },
     startBlocks: {
-      mainnet: 1000000,
-      arbitrum: 2000000,
+      mainnet: { default: 1000000 },
+      arbitrum: { default: 2000000 },
     },
   };
 

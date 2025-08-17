@@ -23,7 +23,10 @@ export type ZonderConfig<
     >
   >;
   startBlocks: {
-    [K in keyof TChains]: number;
+    [K in keyof TChains]: {
+      [contractName: string]: number;
+      default: number;
+    };
   };
 };
 
