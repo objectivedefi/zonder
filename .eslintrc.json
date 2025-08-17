@@ -1,0 +1,16 @@
+{
+  "root": true,
+  "extends": "ponder",
+  "parserOptions": {
+    "ecmaVersion": "latest",
+    "sourceType": "module",
+    "project": ["./tsconfig.json"]
+  },
+  "ignorePatterns": [
+    "ponder.schema.ts",
+    "ponder-env.d.ts",
+    "generated/**",
+    ".ponder/**",
+    "node_modules/**"
+  ]
+}
