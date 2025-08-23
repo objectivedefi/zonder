@@ -64,7 +64,7 @@ describe('generateGraphQLSchema', () => {
     expect(schema).toContain('  evt_signedNum: BigInt!'); // int256 needs BigInt
     expect(schema).toContain('  evt_hash: String!'); // bytes32 as String
     expect(schema).toContain('  evt_name: String!');
-    expect(schema).toContain('  evt_users: [String!]!'); // address[] as [String!]
+    expect(schema).toContain('  evt_users: String!'); // address[] now maps to String! (JSON) for Envio
   });
 
   it('should handle events with no parameters', () => {
@@ -130,6 +130,73 @@ describe('generateGraphQLSchema', () => {
     expect(schema).toContain('type ComplexContract_ComplexEvent');
     // Tuples are serialized as String
     expect(schema).toContain('  evt_data: String!');
+  });
+
+  it('should handle tuple array types', () => {
+    const config: ZonderConfig<any, any> = {
+      chains: {},
+      contracts: {
+        EULOFTAdapter: parseAbi([
+          'event EnforcedOptionSet((uint32 eid, uint16 msgType, bytes options)[] _enforcedOptions)',
+        ]),
+      },
+      addresses: {},
+      startBlocks: {},
+    };
+
+    const schema = generateGraphQLSchema(config);
+
+    expect(schema).toContain('type EULOFTAdapter_EnforcedOptionSet');
+    // Tuple arrays are serialized as a single String (JSON), not [String!]!
+    expect(schema).toContain('  evt__enforcedOptions: String!');
+  });
+
+  it('should handle array types as JSON strings for Envio', () => {
+    const config: ZonderConfig<any, any> = {
+      chains: {},
+      contracts: {
+        QueueContract: parseAbi([
+          'event SetSupplyQueue(address indexed caller, address[] newSupplyQueue)',
+          'event UpdatedValues(uint256[] amounts, bytes32[] hashes, bool[] flags)',
+        ]),
+      },
+      addresses: {},
+      startBlocks: {},
+    };
+
+    const schema = generateGraphQLSchema(config);
+
+    expect(schema).toContain('type QueueContract_SetSupplyQueue');
+    expect(schema).toContain('  evt_caller: String!');
+    expect(schema).toContain('  evt_newSupplyQueue: String!'); // address[] as String (JSON)
+
+    expect(schema).toContain('type QueueContract_UpdatedValues');
+    expect(schema).toContain('  evt_amounts: String!'); // uint256[] as String (JSON)
+    expect(schema).toContain('  evt_hashes: String!'); // bytes32[] as String (JSON)
+    expect(schema).toContain('  evt_flags: String!'); // bool[] as String (JSON)
+  });
+
+  it('should handle nested array types as JSON strings for Envio', () => {
+    const config: ZonderConfig<any, any> = {
+      chains: {},
+      contracts: {
+        NestedArrayContract: parseAbi([
+          'event MatrixEvent(uint256[][] matrix, address[][][] deepNested)',
+          'event ComplexNested((uint256 amount, address user)[][] tupleMatrix)',
+        ]),
+      },
+      addresses: {},
+      startBlocks: {},
+    };
+
+    const schema = generateGraphQLSchema(config);
+
+    expect(schema).toContain('type NestedArrayContract_MatrixEvent');
+    expect(schema).toContain('  evt_matrix: String!'); // uint256[][] as String (JSON)
+    expect(schema).toContain('  evt_deepNested: String!'); // address[][][] as String (JSON)
+
+    expect(schema).toContain('type NestedArrayContract_ComplexNested');
+    expect(schema).toContain('  evt_tupleMatrix: String!'); // tuple[][] as String (JSON)
   });
 
   it('should generate indexes for address fields', () => {

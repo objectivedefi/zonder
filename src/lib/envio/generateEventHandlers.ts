@@ -25,6 +25,13 @@ export function generateEventHandlers<
 
   // Helper functions (kept as-is)
   const helperFunctions = `
+function replacer(_: string, value: any) {
+  if (typeof value === "bigint") {
+    return \`\${value.toString()}n\`;
+  }
+  return value;
+}
+
 function extractEventParams<params extends { [key: string]: any }>(
   event: EventLog<params>
 ) {
@@ -42,7 +49,11 @@ function extractEventParams<params extends { [key: string]: any }>(
 
   const eventParams = Object.entries(event.params ?? {}).reduce(
     (acc, [key, value]) => {
-      acc[\`evt_\${key}\`] = value;
+      if (Array.isArray(value)) {
+        acc[\`evt_\${key}\`] = JSON.stringify(value, replacer);
+      } else {
+        acc[\`evt_\${key}\`] = value;
+      }
       return acc;
     },
     {} as Record<string, any>

@@ -2,9 +2,13 @@
  * Maps Solidity types to GraphQL types
  */
 export function solidityTypeToGraphQLType(solidityType: string): string {
-  // Remove array notation for base type detection
+  // Envio doesn't support array notation - all arrays should be serialized as JSON strings
+  if (solidityType.includes('[')) {
+    return 'String';
+  }
+
+  // Remove array notation for base type detection (not needed anymore but keeping for clarity)
   const baseType = solidityType.replace(/\[.*\]$/, '');
-  const isArray = solidityType.includes('[');
 
   let graphqlType: string;
 
@@ -34,6 +38,5 @@ export function solidityTypeToGraphQLType(solidityType: string): string {
     graphqlType = 'String';
   }
 
-  // Add array notation if needed
-  return isArray ? `[${graphqlType}!]` : graphqlType;
+  return graphqlType;
 }
