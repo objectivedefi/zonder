@@ -1,10 +1,10 @@
 import fs from 'fs';
 import type { Abi } from 'viem';
 
+import type { ZonderConfig } from '../zonder/types.js';
 import { solidityTypeToPgType } from './solidityTypeToPgType.js';
-import type { ZonderConfig } from './zonder.js';
 
-export async function generateSchema<
+export function generateSchema<
   TChains extends Record<string, any>,
   TContracts extends Record<string, Abi>,
 >(configOrContracts: ZonderConfig<TChains, TContracts> | Record<string, Abi>) {
@@ -69,10 +69,10 @@ ${addressIndexes}
 }
 
 // Script wrapper for CLI usage
-export async function generateAndWriteSchema<
+export function generateAndWriteSchema<
   TChains extends Record<string, any>,
   TContracts extends Record<string, Abi>,
 >(config: ZonderConfig<TChains, TContracts>, outputPath = 'ponder.schema.ts') {
-  const schemaContent = await generateSchema(config);
+  const schemaContent = generateSchema(config);
   fs.writeFileSync(outputPath, schemaContent);
 }

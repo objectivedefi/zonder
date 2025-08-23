@@ -9,6 +9,7 @@ import type { Address, PublicClient } from 'viem';
 export async function findDeploymentBlock(
   client: PublicClient,
   contractAddress: Address,
+  latestBlock: bigint,
 ): Promise<bigint | null> {
   try {
     // First check if this address has any code
@@ -17,9 +18,6 @@ export async function findDeploymentBlock(
       console.log(`Address ${contractAddress} has no code`);
       return null;
     }
-
-    // Get the latest block number to set our upper bound
-    const latestBlock = await client.getBlockNumber();
 
     let low = 0n;
     let high = latestBlock;

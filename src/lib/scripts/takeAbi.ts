@@ -1,11 +1,12 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import { Abi } from 'viem';
 
 interface FoundryOutput {
-  abi: any[];
+  abi: Abi;
 }
 
-export function extractAbiFromFoundryOutput(foundryJsonPath: string): any[] | null {
+export function takeAbiFromFoundryOutput(foundryJsonPath: string): Abi | null {
   try {
     const content = fs.readFileSync(foundryJsonPath, 'utf8');
     const foundryOutput: FoundryOutput = JSON.parse(content);
@@ -16,7 +17,7 @@ export function extractAbiFromFoundryOutput(foundryJsonPath: string): any[] | nu
   }
 }
 
-export function generateTypeScriptAbiFile(abi: any[], contractName: string): string {
+export function generateTypeScriptAbiFile(abi: Abi): string {
   const formattedAbi = JSON.stringify(abi, null, 2);
   return `export default ${formattedAbi} as const;\n`;
 }
@@ -37,6 +38,29 @@ function findContractFile(dirPath: string, targetContract: string): string | nul
   return null;
 }
 
+function findAllContractFiles(dirPath: string): string[] {
+  const contracts: string[] = [];
+
+  if (!fs.existsSync(dirPath)) {
+    return contracts;
+  }
+
+  const entries = fs.readdirSync(dirPath, { withFileTypes: true });
+
+  for (const entry of entries) {
+    const fullPath = path.join(dirPath, entry.name);
+
+    if (entry.isDirectory()) {
+      contracts.push(...findAllContractFiles(fullPath));
+    } else if (entry.name.endsWith('.json')) {
+      const contractName = entry.name.replace('.json', '');
+      contracts.push(contractName);
+    }
+  }
+
+  return contracts;
+}
+
 export function extractSpecificContract(
   foundryOutDir: string,
   contractName: string,
@@ -55,16 +79,30 @@ export function extractSpecificContract(
 
   if (!contractJsonPath) {
     console.error(`Contract ${contractName}.json not found in ${foundryOutDir}`);
+
+    // Show available contracts
+    const availableContracts = findAllContractFiles(foundryOutDir);
+    if (availableContracts.length > 0) {
+      const sortedContracts = [...new Set(availableContracts)].sort();
+      console.log('\n💡 Available contracts:');
+      sortedContracts.forEach((contract) => {
+        console.log(`  - ${contract}`);
+      });
+      console.log(
+        `\n💡 Usage: pnpm zonder take-abi ${foundryOutDir} ${sortedContracts.slice(0, 3).join(' ')}`,
+      );
+    }
+
     return false;
   }
 
-  const abi = extractAbiFromFoundryOutput(contractJsonPath);
+  const abi = takeAbiFromFoundryOutput(contractJsonPath);
   if (!abi || abi.length === 0) {
     console.error(`No ABI found for ${contractName}`);
     return false;
   }
 
-  const tsContent = generateTypeScriptAbiFile(abi, contractName);
+  const tsContent = generateTypeScriptAbiFile(abi);
   const outputPath = path.join(outputDir, `${contractName}.ts`);
 
   fs.writeFileSync(outputPath, tsContent);
@@ -79,10 +117,12 @@ export function extractMultipleContracts(
 ): void {
   const foundryOutDirResolved = path.resolve(foundryOutDir);
   const outputDirResolved = path.resolve(outputDir);
-
-  console.log(`Extracting from: ${foundryOutDirResolved}`);
-  console.log(`Contracts: ${contractNames.join(', ')}`);
-  console.log(`Output directory: ${outputDirResolved}`);
+  // Check if foundry out directory exists
+  if (!fs.existsSync(foundryOutDirResolved)) {
+    console.error(`❌ Foundry output directory not found: ${foundryOutDirResolved}`);
+    console.log('💡 Make sure you have run "forge build" in your Foundry project first.');
+    process.exit(1);
+  }
 
   let successCount = 0;
   let failCount = 0;
@@ -100,4 +140,8 @@ export function extractMultipleContracts(
   if (failCount > 0) {
     process.exit(1);
   }
+}
+
+export async function takeAbi(outDir: string, contracts: string[]): Promise<void> {
+  return extractMultipleContracts(outDir, contracts, './abis');
 }

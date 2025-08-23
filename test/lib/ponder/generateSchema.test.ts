@@ -1,104 +1,11 @@
-import { parseAbiItem } from 'viem';
-import { arbitrum, mainnet } from 'viem/chains';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { buildConfig } from '../src/lib/buildConfig';
-import { generateSchema } from '../src/lib/generateSchema';
-import { addrA, addrB } from './utils';
+import { generateSchema } from '../../../src/lib/ponder/generateSchema';
+import { addrA, addrB } from '../../utils';
 
 beforeEach(() => {
   vi.stubEnv('PONDER_RPC_URL_1', 'https://eth.llamarpc.com');
   vi.stubEnv('PONDER_RPC_URL_42161', 'https://arb1.arbitrum.io/rpc');
-});
-
-describe('buildConfig', () => {
-  const mockAbi = [
-    {
-      type: 'event',
-      name: 'Transfer',
-      inputs: [
-        { name: 'from', type: 'address', indexed: true },
-        { name: 'to', type: 'address', indexed: true },
-        { name: 'value', type: 'uint256', indexed: false },
-      ],
-    },
-  ] as const;
-
-  const rawConfig = {
-    chains: { mainnet, arbitrum },
-    contracts: { Token: mockAbi },
-    addresses: {
-      mainnet: { Token: addrA },
-      arbitrum: { Token: addrB },
-    },
-    startBlocks: {
-      mainnet: { default: 1000000 },
-      arbitrum: { default: 2000000 },
-    },
-  };
-
-  it('should generate complete ponder config', () => {
-    const result = buildConfig(rawConfig);
-
-    expect(result).toHaveProperty('chains');
-    expect(result).toHaveProperty('contracts');
-
-    // Check chains
-    expect(result.chains).toEqual({
-      mainnet: { id: 1, rpc: ['https://eth.llamarpc.com'] },
-      arbitrum: { id: 42161, rpc: ['https://arb1.arbitrum.io/rpc'] },
-    });
-
-    // Check contracts
-    expect(result.contracts.Token).toEqual({
-      abi: mockAbi,
-      chain: {
-        mainnet: {
-          address: addrA,
-          startBlock: 1000000,
-        },
-        arbitrum: {
-          address: addrB,
-          startBlock: 2000000,
-        },
-      },
-    });
-  });
-
-  it('should handle factory-deployed contracts', () => {
-    const factoryConfig = {
-      chains: { mainnet },
-      contracts: {
-        Token: mockAbi,
-        Factory: mockAbi,
-      },
-      addresses: {
-        mainnet: {
-          Factory: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
-        },
-      },
-      factoryDeployed: {
-        Token: {
-          event: parseAbiItem('event Created(address indexed proxy)'),
-          parameter: 'proxy',
-          deployedBy: 'Factory',
-        },
-      },
-      startBlocks: {
-        mainnet: 1000000,
-      },
-    } as const;
-
-    const result = buildConfig(factoryConfig);
-
-    // Check that Token uses factory address
-    const tokenChain = result.contracts?.Token?.chain;
-    expect(tokenChain).toBeDefined();
-    if (typeof tokenChain === 'object' && tokenChain && 'mainnet' in tokenChain) {
-      expect(tokenChain.mainnet?.address).toBeDefined();
-    }
-    // In real implementation, this would be a factory() call result
-  });
 });
 
 describe('generateSchema', () => {
@@ -131,7 +38,7 @@ describe('generateSchema', () => {
   ] as const;
 
   const schemaConfig = {
-    chains: { mainnet },
+    chains: { mainnet: { id: 1 } },
     contracts: { Token: mockAbi },
     addresses: {
       mainnet: { Token: addrA },
@@ -141,8 +48,8 @@ describe('generateSchema', () => {
     },
   };
 
-  it('should generate schema with correct structure', async () => {
-    const schema = await generateSchema(schemaConfig);
+  it('should generate schema with correct structure', () => {
+    const schema = generateSchema(schemaConfig);
 
     // Check header
     expect(schema).toContain('// This file is auto-generated');
@@ -169,8 +76,8 @@ describe('generateSchema', () => {
     expect(schema).toContain('export const Token_Approval = Token.Approval');
   });
 
-  it('should generate correct field types', async () => {
-    const schema = await generateSchema(schemaConfig);
+  it('should generate correct field types', () => {
+    const schema = generateSchema(schemaConfig);
 
     // Check Transfer event fields
     expect(schema).toContain('evt_from: t.hex');
@@ -184,15 +91,15 @@ describe('generateSchema', () => {
     expect(schema).toContain("evt_spenderIdx: index().using('btree', t.chainId, t.evt_spender)");
   });
 
-  it('should use composite index for chainId and timestamp', async () => {
-    const schema = await generateSchema(schemaConfig);
+  it('should use composite index for chainId and timestamp', () => {
+    const schema = generateSchema(schemaConfig);
 
     expect(schema).toContain("chainIdTimestampIdx: index().using('btree', t.chainId, t.timestamp)");
   });
 
-  it('should handle contracts with no events', async () => {
+  it('should handle contracts with no events', () => {
     const noEventConfig = {
-      chains: { mainnet },
+      chains: { mainnet: { id: 1 } },
       contracts: {
         Token: [
           {
@@ -212,13 +119,13 @@ describe('generateSchema', () => {
       },
     };
 
-    const schema = await generateSchema(noEventConfig);
+    const schema = generateSchema(noEventConfig);
 
     // Should not include Token contract at all
     expect(schema).not.toContain('export const Token');
   });
 
-  it('should handle special solidity types correctly', async () => {
+  it('should handle special solidity types correctly', () => {
     const specialTypesAbi = [
       {
         type: 'event',
@@ -239,7 +146,7 @@ describe('generateSchema', () => {
     ] as const;
 
     const specialConfig = {
-      chains: { mainnet },
+      chains: { mainnet: { id: 1 } },
       contracts: { Special: specialTypesAbi },
       addresses: {
         mainnet: { Special: addrA },
@@ -247,7 +154,7 @@ describe('generateSchema', () => {
       startBlocks: { mainnet: 1000000 },
     };
 
-    const schema = await generateSchema(specialConfig);
+    const schema = generateSchema(specialConfig);
 
     expect(schema).toContain('evt_boolField: t.boolean');
     expect(schema).toContain('evt_bytesField: t.hex');
@@ -263,7 +170,7 @@ describe('generateSchema', () => {
 });
 
 describe('generateSchema snapshots', () => {
-  it('should match snapshot for a complete config', async () => {
+  it('should match snapshot for a complete config', () => {
     const completeAbi = [
       {
         type: 'event',
@@ -277,7 +184,10 @@ describe('generateSchema snapshots', () => {
     ] as const;
 
     const config = {
-      chains: { mainnet, arbitrum },
+      chains: {
+        mainnet: { id: 1 },
+        arbitrum: { id: 42161 },
+      },
       contracts: { Token: completeAbi },
       addresses: {
         mainnet: { Token: addrA },
@@ -289,13 +199,13 @@ describe('generateSchema snapshots', () => {
       },
     };
 
-    const schema = await generateSchema(config);
+    const schema = generateSchema(config);
 
     // In a real test, this would use toMatchSnapshot()
     // expect(schema).toMatchSnapshot();
 
     // For now, just check it's deterministic
-    const schema2 = await generateSchema(config);
+    const schema2 = generateSchema(config);
     expect(schema).toBe(schema2);
   });
 });

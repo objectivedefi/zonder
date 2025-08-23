@@ -1,32 +1,33 @@
 # Zonder
 
-Ergonomic Ponder framework for multichain event extraction.
+Multi-chain indexing config generator for Ponder and Envio.
 
 > [!WARNING]
 > Pre-production API: expect breaking changes
 
 ## Quick Start
 
+Choose one indexing backend: Ponder or Envio.
+
+### Zonder + Envio
+
 ```bash
-# 1. Init new Ponder project
-pnpm ponder create my-indexer
+# 1. Initialize Envio (choose Greeter Template)
+pnpx envio init
 
 # 2. Install Zonder
 pnpm add zonder
 ```
 
 ```typescript
-// 3. Add your ABIs in abis/
-// File: abis/EVault.ts (note: .ts extension, not .abi)
+// 3. Add your ABIs in abis/[ContractName].ts
+// Tip: `pnpm zonder take-abi` extracts abi from local Foundry compilation artifacts
+// File: abis/EVault.ts
 export default [...] as const;
 
-// 💡 Use `pnpm zonder take-abi` to extract from Foundry (recommended)
-```
-
-```typescript
-// 4. Configure ponder.config.ts
+// 4. Create your zonder.config.ts
 import { mainnet } from 'viem/chains';
-import { ZonderConfig, zonder } from 'zonder';
+import { ZonderConfig } from 'zonder';
 
 import EVault from './abis/EVault';
 
@@ -34,32 +35,83 @@ export const zonderConfig = {
   chains: { mainnet },
   contracts: { EVault },
   addresses: { mainnet: { EVault: '0x...' } },
-  startBlocks: { mainnet: { default: 20000000 } },
-} as const satisfies ZonderConfig<any, any>;
+};
+```
 
-export default zonder(zonderConfig);
+```bash
+# 5. Generate files
+pnpm zonder generate envio
+# Creates: config.yaml, schema.graphql, src/EventHandlers.ts, .env.example
+
+# 6. Configure DB (copy .env.example to .env.local and fill values)
+cp .env.example .env.local
+
+# 7. Generate envio internals
+pnpm envio codegen
+
+# 8. Run
+pnpm envio start
+```
+
+### Zonder + Ponder
+
+```bash
+# 1. Initialize Ponder (choose Default template)
+pnpm create ponder my-indexer
+cd my-indexer
+
+# 2. Install Zonder
+pnpm add zonder
+```
+
+```typescript
+// 3. Add your ABIs in abis/[ContractName].ts
+// Tip: `pnpm zonder take-abi` extracts abi from local Foundry compilation artifacts
+// File: abis/EVault.ts
+export default [...] as const;
+
+// 4. Create your zonder.config.ts
+import { mainnet } from 'viem/chains';
+import { ZonderConfig } from 'zonder';
+
+import EVault from './abis/EVault';
+
+export const zonderConfig = {
+  chains: { mainnet },
+  contracts: { EVault },
+  addresses: { mainnet: { EVault: '0x...' } },
+};
 ```
 
 ```bash
 # 5. Auto-discover deployment blocks (recommended)
 pnpm zonder find-start-blocks
-# Copy the output to your startBlocks config
 
-# 6. Generate schema and event handlers
-pnpm zonder generate
+# 6. Generate files
+pnpm zonder generate ponder
+# Creates: ponder.config.ts, ponder.schema.ts, src/index.ts, .env.example
 
-# 7. Start indexing
+# 7. Configure RPC URLs (copy .env.example to .env.local and add RPC URLs)
+cp .env.example .env.local
+
+# 8. Start indexing
 pnpm ponder dev
 ```
 
 ## CLI Commands
 
-### `generate`
+### `generate <runtime>`
 
-Generate Ponder schema and event handlers from your config:
+Generate indexer files for your chosen runtime:
 
 ```bash
-pnpm zonder generate
+# For Ponder
+pnpm zonder generate ponder
+# Generates: ponder.config.ts, ponder.schema.ts, src/index.ts, .env.example
+
+# For Envio
+pnpm zonder generate envio
+# Generates: config.yaml, schema.graphql, src/EventHandlers.ts, .env.example
 ```
 
 ### `take-abi`
@@ -92,11 +144,12 @@ Features:
 
 ## Features
 
-- **Zero transformations**: Raw event storage for maximum speed
-- **Analytics-ready schemas**: Pre-optimized indexes for time-series queries
-- **Multi-chain by default**: Same config works across all chains
-- **Factory contract support**: Auto-track factory-deployed contracts
-- **Type-safe configuration**: Full TypeScript support
+- Generate files for Ponder or Envio from unified config
+- Raw event storage with optimized indexes
+- Multi-chain configuration support
+- Factory contract support for dynamically deployed contracts
+- TypeScript configuration with type safety
+- Auto-generated environment templates
 
 ## Advanced Configuration
 
@@ -129,24 +182,44 @@ contracts: {
 }
 ```
 
-## What Gets Generated
+## Runtime Comparison
 
-**Schema** (`ponder.schema.ts`): Tables with metadata + event args, pre-optimized indexes for analytics
+| Feature      | Ponder             | Envio                 |
+| ------------ | ------------------ | --------------------- |
+| **Database** | SQLite or Postgres | Postgres              |
+| **Sync**     | Standard RPC       | HyperSync + RPC       |
+| **Language** | TypeScript         | TypeScript + ReScript |
 
-**Handlers** (`src/index.ts`): Auto-generated event handlers that save all events raw to database
+### Generated Files
 
-## Why Zonder?
+**Ponder**:
 
-| Vanilla Ponder                       | Zonder                               |
-| ------------------------------------ | ------------------------------------ |
-| Write custom handlers for each event | Auto-generated raw event storage     |
-| Transform data in handlers           | Zero transformations = maximum speed |
-| Design schemas per use case          | Pre-optimized analytics schemas      |
-| Hours to days setup                  | Minutes                              |
+- `ponder.config.ts`: Runtime configuration
+- `ponder.schema.ts`: Drizzle ORM tables with indexes
+- `src/index.ts`: Event handlers for raw storage
+- `.env.example`: RPC URL templates
 
-**Best for**: High-volume analytics, monitoring, data lakes where you need complete raw event data fast.
+**Envio**:
 
-**Not for**: Custom business logic, complex transformations, application-specific data models.
+- `config.yaml`: Network and contract configuration
+- `schema.graphql`: GraphQL entity definitions
+- `src/EventHandlers.ts`: Event processors
+- `.env.example`: Database and performance settings
+
+## Use Cases
+
+**Suitable for**:
+
+- Event data analytics and monitoring
+- Raw blockchain data extraction
+- Quick prototyping of indexers
+- Multi-chain data collection
+
+**Not suitable for**:
+
+- Complex data transformations
+- Custom business logic
+- Application-specific data models
 
 ## License
 
@@ -154,6 +227,7 @@ MIT © Objective Labs
 
 ## Related Projects
 
-- [Ponder](https://ponder.sh) - The underlying indexing framework
-- [Viem](https://viem.sh) - Ethereum client library
+- [Ponder](https://ponder.sh) - TypeScript indexing framework
+- [Envio](https://envio.dev) - High-performance indexing with HyperSync
+- [Viem](https://viem.sh) - TypeScript Ethereum client library
 - [Drizzle ORM](https://orm.drizzle.team) - Database ORM used by Ponder

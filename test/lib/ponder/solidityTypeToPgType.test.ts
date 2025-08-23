@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { solidityTypeToPgType } from '../src/lib/solidityTypeToPgType';
+import { solidityTypeToPgType } from '../../../src/lib/ponder/solidityTypeToPgType';
 
 describe('solidityTypeToPgType', () => {
   describe('basic types', () => {

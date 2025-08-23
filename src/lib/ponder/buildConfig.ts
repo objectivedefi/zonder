@@ -1,9 +1,10 @@
 import { AddressConfig, ChainConfig, ContractConfig, factory } from 'ponder';
 import type { Chain as ViemChain } from 'viem';
 
-import type { ZonderConfig } from './zonder.js';
+import { resolveStartBlock } from '../zonder/resolveStartBlock.js';
+import type { ZonderConfig } from '../zonder/types.js';
 
-export type BuildConfigReturnType = {
+export type PonderBuildConfigReturnType = {
   chains: Record<string, ChainConfig>;
   contracts: Record<string, ContractConfig>;
 };
@@ -84,24 +85,6 @@ export function buildContractChainAddressConfig<
   return null;
 }
 
-function resolveStartBlock<
-  TChains extends Record<string, any>,
-  TContracts extends Record<string, any>,
->(
-  startBlocks: ZonderConfig<TChains, TContracts>['startBlocks'],
-  chainName: string,
-  contractName: string,
-): number {
-  const chainStartBlocks = startBlocks[chainName];
-
-  if (!chainStartBlocks) {
-    throw new Error(`No start blocks configured for chain ${chainName}`);
-  }
-
-  // Per-contract start blocks with default fallback
-  return chainStartBlocks[contractName] ?? chainStartBlocks.default;
-}
-
 export function buildContractConfig<
   TChains extends Record<string, any>,
   TContracts extends Record<string, any>,
@@ -136,7 +119,7 @@ export function buildContractConfig<
 export function buildConfig<
   TChains extends Record<string, any>,
   TContracts extends Record<string, any>,
->(config: ZonderConfig<TChains, TContracts>): BuildConfigReturnType {
+>(config: ZonderConfig<TChains, TContracts>): PonderBuildConfigReturnType {
   return {
     chains: buildChains(config.chains),
     contracts: Object.fromEntries(

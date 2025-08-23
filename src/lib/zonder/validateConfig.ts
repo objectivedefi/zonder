@@ -1,36 +1,9 @@
 import { isAddress } from 'viem';
-import type { Abi, AbiEvent, Address, Chain as ViemChain } from 'viem';
+import type { Abi, Chain as ViemChain } from 'viem';
 
-import { BuildConfigReturnType, buildConfig } from './buildConfig.js';
+import { type ZonderConfig } from './types.js';
 
-export type ZonderConfig<
-  TChains extends Record<string, ViemChain>,
-  TContracts extends Record<string, Abi>,
-> = {
-  chains: TChains;
-  contracts: TContracts;
-  addresses: {
-    [K in keyof TChains]: Partial<Record<keyof TContracts, Address | Address[]>>;
-  };
-  factoryDeployed?: Partial<
-    Record<
-      keyof TContracts,
-      {
-        event: AbiEvent;
-        parameter: string;
-        deployedBy: keyof TContracts;
-      }
-    >
-  >;
-  startBlocks: {
-    [K in keyof TChains]: {
-      [contractName: string]: number;
-      default: number;
-    };
-  };
-};
-
-function validateZonderConfig<
+export function validateZonderConfig<
   TChains extends Record<string, ViemChain>,
   TContracts extends Record<string, Abi>,
 >(config: ZonderConfig<TChains, TContracts>) {
@@ -45,7 +18,9 @@ function validateZonderConfig<
   };
 
   Object.keys(config.addresses).forEach((chain) => validateChainExists(chain, 'addresses'));
-  Object.keys(config.startBlocks).forEach((chain) => validateChainExists(chain, 'startBlocks'));
+  if (config.startBlocks) {
+    Object.keys(config.startBlocks).forEach((chain) => validateChainExists(chain, 'startBlocks'));
+  }
 
   // Validate contract references and addresses
   for (const [chain, chainAddresses] of Object.entries(config.addresses)) {
@@ -80,22 +55,4 @@ function validateZonderConfig<
       }
     }
   }
-}
-
-export function zonder<
-  TChains extends Record<string, ViemChain>,
-  TContracts extends Record<string, Abi>,
->(config: ZonderConfig<TChains, TContracts>): BuildConfigReturnType {
-  validateZonderConfig(config);
-
-  let builtConfig: BuildConfigReturnType | null = null;
-
-  return new Proxy({} as BuildConfigReturnType, {
-    get(target, prop) {
-      if (!builtConfig) {
-        builtConfig = buildConfig(config);
-      }
-      return builtConfig[prop as keyof BuildConfigReturnType];
-    },
-  });
 }

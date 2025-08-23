@@ -7,8 +7,8 @@ import {
   http,
 } from 'viem';
 
+import type { ZonderConfig } from '../zonder/types.js';
 import { findDeploymentBlock } from './findDeploymentBlock.js';
-import type { ZonderConfig } from './zonder.js';
 
 interface DeploymentResults {
   [chainName: string]: {
@@ -39,6 +39,7 @@ function hasSpecificStartBlock<
   chainName: keyof TChains,
   contractName: string,
 ): boolean {
+  if (!config.startBlocks) return false;
   const chainStartBlocks = config.startBlocks[chainName];
   if (!chainStartBlocks) return false;
 
@@ -61,11 +62,15 @@ export async function findAllDeploymentBlocks<
   const results: DeploymentResults = {};
 
   // Pre-populate with existing start blocks from config
-  for (const [chainName, chainStartBlocks] of Object.entries(config.startBlocks)) {
-    results[chainName] = {};
-    for (const [contractName, blockNumber] of Object.entries(chainStartBlocks)) {
-      if (contractName !== 'default' && typeof blockNumber === 'number') {
-        results[chainName][contractName] = blockNumber;
+  if (config.startBlocks) {
+    for (const [chainName, chainStartBlocks] of Object.entries(config.startBlocks)) {
+      if (chainStartBlocks) {
+        results[chainName] = {};
+        for (const [contractName, blockNumber] of Object.entries(chainStartBlocks)) {
+          if (contractName !== 'default' && typeof blockNumber === 'number') {
+            results[chainName][contractName] = blockNumber;
+          }
+        }
       }
     }
   }
@@ -100,6 +105,7 @@ export async function findAllDeploymentBlocks<
       }
 
       const addressEntries = Object.entries(addresses);
+      const latestBlock = await client.getBlockNumber();
 
       for (const [contractName, address] of addressEntries) {
         if (!address) {
@@ -121,7 +127,11 @@ export async function findAllDeploymentBlocks<
           const currentAddress = addressesToProcess[i];
 
           try {
-            const deploymentBlock = await findDeploymentBlock(client, currentAddress as Address);
+            const deploymentBlock = await findDeploymentBlock(
+              client,
+              currentAddress as Address,
+              latestBlock,
+            );
 
             if (deploymentBlock !== null) {
               const blockNumber = Number(deploymentBlock);

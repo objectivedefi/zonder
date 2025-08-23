@@ -4,10 +4,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   buildChains,
+  buildConfig,
   buildContractChainAddressConfig,
   buildContractConfig,
-} from '../src/lib/buildConfig';
-import { addrA, addrB } from './utils';
+} from '../../../src/lib/ponder/buildConfig';
+import { addrA, addrB } from '../../utils';
 
 // Mock environment variables
 beforeEach(() => {
@@ -265,5 +266,95 @@ describe('buildContractConfig', () => {
 
     expect((result.chain as any).mainnet.startBlock).toBe(9999999);
     expect((result.chain as any).arbitrum.startBlock).toBe(8888888);
+  });
+});
+
+describe('buildConfig', () => {
+  const mockAbi = [
+    {
+      type: 'event',
+      name: 'Transfer',
+      inputs: [
+        { name: 'from', type: 'address', indexed: true },
+        { name: 'to', type: 'address', indexed: true },
+        { name: 'value', type: 'uint256', indexed: false },
+      ],
+    },
+  ] as const;
+
+  const rawConfig = {
+    chains: { mainnet, arbitrum },
+    contracts: { Token: mockAbi },
+    addresses: {
+      mainnet: { Token: addrA },
+      arbitrum: { Token: addrB },
+    },
+    startBlocks: {
+      mainnet: { default: 1000000 },
+      arbitrum: { default: 2000000 },
+    },
+  };
+
+  it('should generate complete ponder config', () => {
+    const result = buildConfig(rawConfig);
+
+    expect(result).toHaveProperty('chains');
+    expect(result).toHaveProperty('contracts');
+
+    // Check chains
+    expect(result.chains).toEqual({
+      mainnet: { id: 1, rpc: ['https://eth.llamarpc.com', 'https://rpc.ankr.com/eth'] },
+      arbitrum: { id: 42161, rpc: ['https://arb1.arbitrum.io/rpc'] },
+    });
+
+    // Check contracts
+    expect(result.contracts.Token).toEqual({
+      abi: mockAbi,
+      chain: {
+        mainnet: {
+          address: addrA,
+          startBlock: 1000000,
+        },
+        arbitrum: {
+          address: addrB,
+          startBlock: 2000000,
+        },
+      },
+    });
+  });
+
+  it('should handle factory-deployed contracts', () => {
+    const factoryConfig = {
+      chains: { mainnet },
+      contracts: {
+        Token: mockAbi,
+        Factory: mockAbi,
+      },
+      addresses: {
+        mainnet: {
+          Factory: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
+        },
+      },
+      factoryDeployed: {
+        Token: {
+          event: parseAbiItem('event Created(address indexed proxy)'),
+          parameter: 'proxy',
+          deployedBy: 'Factory',
+        },
+      },
+      startBlocks: {
+        mainnet: 1000000,
+      },
+    } as const;
+
+    const result = buildConfig(factoryConfig);
+
+    // Check that Token uses factory address
+    const tokenChain = result.contracts?.Token?.chain;
+    expect(tokenChain).toBeDefined();
+    if (typeof tokenChain === 'object' && tokenChain && 'mainnet' in tokenChain) {
+      expect(tokenChain.mainnet?.address).toBeDefined();
+    }
+    // In real implementation, this would be a factory() call result
   });
 });
