@@ -2,7 +2,7 @@ import fs from 'fs';
 import type { Abi } from 'viem';
 
 import type { ZonderConfig } from '../zonder/types.js';
-import { solidityTypeToGraphQLType } from './solidityTypeToGraphQLType.js';
+import { formatEventSignature } from './formatEventSignature.js';
 
 /**
  * Generates event handlers for Envio
@@ -77,6 +77,52 @@ export function registerHandler(
 }
 `;
 
+  /**
+   * Generates factory contract registration handlers
+   */
+  function generateFactoryRegistrations<
+    TChains extends Record<string, any>,
+    TContracts extends Record<string, Abi>,
+  >(config: ZonderConfig<TChains, TContracts>): string {
+    if (!config.factoryDeployed) {
+      return '';
+    }
+
+    const factoryRegistrations: string[] = [];
+
+    Object.entries(config.factoryDeployed).forEach(([contractName, factoryConfig]) => {
+      if (!factoryConfig) return;
+
+      // Only generate registration if the deployed contract has events to index
+      const deployedContractAbi = config.contracts[contractName];
+      const hasEvents = deployedContractAbi?.some((item: any) => item.type === 'event');
+
+      if (!hasEvents) {
+        // Skip registration for contracts with no events - pointless to register them
+        return;
+      }
+
+      const { event, parameter, deployedBy } = factoryConfig;
+      const eventSignature = formatEventSignature(event);
+      const factoryContractName = String(deployedBy);
+
+      // Generate the contractRegister handler
+      const registration = `
+// Factory contract registration for ${contractName}
+${factoryContractName}.${eventSignature.split('(')[0]}.contractRegister(({ event, context }) => {
+  const deployedAddress = event.params.${parameter};
+  context.add${contractName}(deployedAddress);
+});`;
+
+      factoryRegistrations.push(registration);
+    });
+
+    return factoryRegistrations.join('\n') + (factoryRegistrations.length > 0 ? '\n' : '');
+  }
+
+  // Generate factory contract registrations
+  const factoryRegistrations = generateFactoryRegistrations(config);
+
   // Generate registration for each contract
   const registrations = contractsWithEvents
     .map(
@@ -87,7 +133,7 @@ Object.entries(${contractName}).forEach(([eventName, { handler }]) =>
     )
     .join('\n');
 
-  return imports + helperFunctions + registrations + '\n';
+  return imports + helperFunctions + factoryRegistrations + registrations + '\n';
 }
 
 /**

@@ -1,4 +1,4 @@
-import { parseAbi } from 'viem';
+import { type Address, parseAbi } from 'viem';
 import { arbitrum, mainnet } from 'viem/chains';
 import { describe, expect, it } from 'vitest';
 
@@ -135,9 +135,262 @@ describe('generateEnvioConfig', () => {
       .slice(mainnetIdx, arbitrumIdx > mainnetIdx ? arbitrumIdx : undefined)
       .join('\n');
 
-    // ERC20 should still be there, but not UniswapV2Pair
+    // ERC20 should still be there with address
     expect(mainnetSection).toContain('name: ERC20');
-    expect(mainnetSection).not.toContain('name: UniswapV2Pair');
+    expect(mainnetSection).toMatch(/name:\s*ERC20[\s\S]*?address:/);
+
+    // UniswapV2Pair should be there but WITHOUT address (factory-deployed)
+    expect(mainnetSection).toContain('name: UniswapV2Pair');
+    expect(mainnetSection).not.toMatch(/name:\s*UniswapV2Pair[\s\S]*?address:/);
+
+    // UniswapV2Pair should also be in the contracts section for registration methods
+    expect(yamlContent).toContain('name: UniswapV2Pair');
+  });
+
+  it('should NOT include factory-deployed contracts without events', () => {
+    const configWithFactoryNoEvents: ZonderConfig<any, any> = {
+      chains: { mainnet },
+      contracts: {
+        Factory: parseAbi([
+          'event PairCreated(address indexed token0, address indexed token1, address pair, uint256)',
+        ]),
+        // Factory-deployed contract with no events defined in ABI
+        DeployedContract: parseAbi(['function someFunction() view returns (uint256)']),
+      },
+      addresses: {
+        mainnet: {
+          Factory: '0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f' as Address,
+          // No address for DeployedContract since it's factory-deployed
+        },
+      },
+      factoryDeployed: {
+        DeployedContract: {
+          event: parseAbi([
+            'event PairCreated(address indexed token0, address indexed token1, address pair, uint256)',
+          ])[0],
+          parameter: 'pair',
+          deployedBy: 'Factory' as any,
+        },
+      },
+    };
+
+    const yamlContent = generateEnvioConfig(configWithFactoryNoEvents);
+
+    // Factory should be in contracts (has events)
+    expect(yamlContent).toContain('name: Factory');
+
+    // DeployedContract should NOT be in contracts (no events, so useless to index)
+    expect(yamlContent).not.toContain('name: DeployedContract');
+  });
+
+  it('should include events from factory-deployed contracts with events in their ABI', () => {
+    const configWithFactoryEvents: ZonderConfig<any, any> = {
+      chains: { mainnet },
+      contracts: {
+        Factory: parseAbi([
+          'event PairCreated(address indexed token0, address indexed token1, address pair, uint256)',
+        ]),
+        // Factory-deployed contract WITH events in its ABI
+        DeployedWithEvents: parseAbi([
+          'event Transfer(address indexed from, address indexed to, uint256 value)',
+          'event Approval(address indexed owner, address indexed spender, uint256 value)',
+        ]),
+      },
+      addresses: {
+        mainnet: {
+          Factory: '0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f' as Address,
+        },
+      },
+      factoryDeployed: {
+        DeployedWithEvents: {
+          event: parseAbi([
+            'event PairCreated(address indexed token0, address indexed token1, address pair, uint256)',
+          ])[0],
+          parameter: 'pair',
+          deployedBy: 'Factory' as any,
+        },
+      },
+    };
+
+    const yamlContent = generateEnvioConfig(configWithFactoryEvents);
+
+    // DeployedWithEvents should be in contracts section
+    expect(yamlContent).toContain('name: DeployedWithEvents');
+
+    // DeployedWithEvents should include its own events from the ABI
+    expect(yamlContent).toContain(
+      'event: Transfer(address indexed from, address indexed to, uint256 value)',
+    );
+    expect(yamlContent).toContain(
+      'event: Approval(address indexed owner, address indexed spender, uint256 value)',
+    );
+
+    // Should NOT have empty events array
+    expect(yamlContent).not.toMatch(/name:\s+DeployedWithEvents[\s\S]*?events:\s*\[\s*\]/);
+  });
+
+  it('should reproduce IRMLinearKink scenario with factory-deployed contracts', () => {
+    const irmConfig: ZonderConfig<any, any> = {
+      chains: { mainnet },
+      contracts: {
+        IRMLinearKinkFactory: parseAbi([
+          'event ProxyCreated(address indexed proxy, bool upgradeable, address implementation, bytes trailingData)',
+        ]),
+        // This simulates IRMLinearKink with events like Transfer, etc.
+        IRMLinearKink: parseAbi([
+          'event Transfer(address indexed from, address indexed to, uint256 value)',
+          'event InterestRateUpdated(uint256 baseRate, uint256 multiplier)',
+        ]),
+      },
+      addresses: {
+        mainnet: {
+          IRMLinearKinkFactory: '0x123...' as Address,
+          // No address for IRMLinearKink since it's factory-deployed
+        },
+      },
+      factoryDeployed: {
+        IRMLinearKink: {
+          event: parseAbi([
+            'event ProxyCreated(address indexed proxy, bool upgradeable, address implementation, bytes trailingData)',
+          ])[0],
+          parameter: 'proxy',
+          deployedBy: 'IRMLinearKinkFactory' as any,
+        },
+      },
+    };
+
+    const yamlContent = generateEnvioConfig(irmConfig);
+
+    // IRMLinearKink should be in contracts section
+    expect(yamlContent).toContain('name: IRMLinearKink');
+
+    // IRMLinearKink should include its own events from the ABI, not an empty array
+    expect(yamlContent).toContain(
+      'event: Transfer(address indexed from, address indexed to, uint256 value)',
+    );
+    expect(yamlContent).toContain(
+      'event: InterestRateUpdated(uint256 baseRate, uint256 multiplier)',
+    );
+
+    // Should NOT have empty events array
+    expect(yamlContent).not.toMatch(/name:\s+IRMLinearKink[\s\S]*?events:\s*\[\s*\]/);
+
+    // Should be in network contracts but WITHOUT address
+    const lines = yamlContent.split('\n');
+    const networksIdx = lines.findIndex((line) => line.includes('networks:'));
+    const networksSection = lines.slice(networksIdx).join('\n');
+
+    // Should be listed in networks.contracts
+    expect(networksSection).toContain('name: IRMLinearKink');
+    // But should NOT have address field
+    expect(networksSection).not.toMatch(/name:\s*IRMLinearKink\s+address:/);
+  });
+
+  it('should NOT include factory-deployed contracts with no events in config', () => {
+    const configWithFactoryNoEvents: ZonderConfig<any, any> = {
+      chains: { mainnet },
+      contracts: {
+        Factory: parseAbi([
+          'event ProxyCreated(address indexed proxy, bool upgradeable, address implementation, bytes trailingData)',
+        ]),
+        // Factory-deployed contract with NO events - only functions
+        ContractWithNoEvents: parseAbi([
+          'function someFunction() view returns (uint256)',
+          'function anotherFunction() external',
+        ]),
+      },
+      addresses: {
+        mainnet: {
+          Factory: '0x123...' as Address,
+        },
+      },
+      factoryDeployed: {
+        ContractWithNoEvents: {
+          event: parseAbi([
+            'event ProxyCreated(address indexed proxy, bool upgradeable, address implementation, bytes trailingData)',
+          ])[0],
+          parameter: 'proxy',
+          deployedBy: 'Factory' as any,
+        },
+      },
+    };
+
+    const yamlContent = generateEnvioConfig(configWithFactoryNoEvents);
+
+    // Factory should be in contracts (has events)
+    expect(yamlContent).toContain('name: Factory');
+
+    // ContractWithNoEvents should NOT be in contracts section since it has no events
+    expect(yamlContent).not.toContain('name: ContractWithNoEvents');
+  });
+
+  it('should handle complete factory deployment scenario correctly', () => {
+    const completeConfig: ZonderConfig<any, any> = {
+      chains: { mainnet },
+      contracts: {
+        // Factory contract with events
+        MyFactory: parseAbi([
+          'event ProxyCreated(address indexed proxy, bool upgradeable, address implementation, bytes trailingData)',
+        ]),
+        // Factory-deployed contract WITH events
+        TokenWithEvents: parseAbi([
+          'event Transfer(address indexed from, address indexed to, uint256 value)',
+        ]),
+        // Factory-deployed contract WITHOUT events (should be ignored)
+        TokenWithoutEvents: parseAbi(['function balanceOf(address owner) view returns (uint256)']),
+        // Regular contract with events and address
+        RegularContract: parseAbi(['event SomeEvent(uint256 value)']),
+      },
+      addresses: {
+        mainnet: {
+          MyFactory: '0xFactory123' as Address,
+          RegularContract: '0xRegular123' as Address,
+          // No addresses for factory-deployed contracts
+        },
+      },
+      factoryDeployed: {
+        TokenWithEvents: {
+          event: parseAbi([
+            'event ProxyCreated(address indexed proxy, bool upgradeable, address implementation, bytes trailingData)',
+          ])[0],
+          parameter: 'proxy',
+          deployedBy: 'MyFactory' as any,
+        },
+        TokenWithoutEvents: {
+          event: parseAbi([
+            'event ProxyCreated(address indexed proxy, bool upgradeable, address implementation, bytes trailingData)',
+          ])[0],
+          parameter: 'proxy',
+          deployedBy: 'MyFactory' as any,
+        },
+      },
+    };
+
+    const yamlContent = generateEnvioConfig(completeConfig);
+
+    // Contracts section should include:
+    expect(yamlContent).toContain('name: MyFactory'); // Factory (has events)
+    expect(yamlContent).toContain('name: TokenWithEvents'); // Factory-deployed with events
+    expect(yamlContent).toContain('name: RegularContract'); // Regular contract
+    expect(yamlContent).not.toContain('name: TokenWithoutEvents'); // Factory-deployed without events
+
+    // Networks section analysis
+    const lines = yamlContent.split('\n');
+    const networksIdx = lines.findIndex((line) => line.includes('networks:'));
+    const networksSection = lines.slice(networksIdx).join('\n');
+
+    // Should have MyFactory with address
+    expect(networksSection).toMatch(/name:\s*MyFactory[\s\S]*?address:/);
+
+    // Should have RegularContract with address
+    expect(networksSection).toMatch(/name:\s*RegularContract[\s\S]*?address:/);
+
+    // Should have TokenWithEvents WITHOUT address (factory-deployed)
+    expect(networksSection).toContain('name: TokenWithEvents');
+    expect(networksSection).not.toMatch(/name:\s*TokenWithEvents[\s\S]*?address:/);
+
+    // Should NOT have TokenWithoutEvents at all
+    expect(networksSection).not.toContain('name: TokenWithoutEvents');
   });
 
   it('should handle events with tuple parameters', async () => {
