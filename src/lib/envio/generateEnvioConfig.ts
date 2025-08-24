@@ -1,7 +1,7 @@
-import fs from 'fs';
 import * as yaml from 'js-yaml';
 import type { Abi } from 'viem';
 
+import { safeWriteFileSync } from '../utils/safeWrite.js';
 import { resolveMinStartBlock, resolveStartBlock } from '../zonder/resolveStartBlock.js';
 import type { ZonderConfig } from '../zonder/types.js';
 import { formatEventSignature } from './formatEventSignature.js';
@@ -154,7 +154,8 @@ export function generateAndWriteEnvioConfig<
   config: ZonderConfig<TChains, TContracts>,
   outputPath = 'config.yaml',
   projectName = 'zonder-indexer',
+  overwrite = false,
 ) {
   const yamlContent = generateEnvioConfig(config, projectName);
-  fs.writeFileSync(outputPath, yamlContent);
+  safeWriteFileSync(outputPath, yamlContent, { overwrite });
 }

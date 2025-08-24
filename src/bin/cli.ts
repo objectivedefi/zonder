@@ -32,6 +32,7 @@ program
   .command('generate <runtime>')
   .description('Generate indexer files for specified runtime (ponder or envio)')
   .option('-c, --config <path>', 'Path to config file', './zonder.config.ts')
+  .option('--overwrite', 'Overwrite existing files without warning')
   .action(async (runtime, options) => {
     try {
       const configPath = resolve(options.config);
@@ -79,10 +80,10 @@ program
           fs.mkdirSync(srcDir, { recursive: true });
         }
 
-        generateAndWritePonderConfig(configPath);
-        generateAndWriteSchema(zonderConfig, schemaPath);
-        generateAndWriteIndex(indexPath);
-        generateAndWritePonderEnvExample(zonderConfig, envExamplePath);
+        generateAndWritePonderConfig(configPath, options.overwrite);
+        generateAndWriteSchema(zonderConfig, schemaPath, options.overwrite);
+        generateAndWriteIndex(indexPath, options.overwrite);
+        generateAndWritePonderEnvExample(zonderConfig, envExamplePath, options.overwrite);
 
         console.log('✅ Ponder files generated!');
       } else if (runtime === 'envio') {
@@ -96,10 +97,15 @@ program
           fs.mkdirSync(srcDir, { recursive: true });
         }
 
-        generateAndWriteEnvioConfig(zonderConfig, configYamlPath, 'envio-indexer');
-        generateAndWriteGraphQLSchema(zonderConfig);
-        generateAndWriteEventHandlers(zonderConfig, handlersPath);
-        generateAndWriteEnvExample(envExamplePath);
+        generateAndWriteEnvioConfig(
+          zonderConfig,
+          configYamlPath,
+          'envio-indexer',
+          options.overwrite,
+        );
+        generateAndWriteGraphQLSchema(zonderConfig, options.overwrite);
+        generateAndWriteEventHandlers(zonderConfig, handlersPath, options.overwrite);
+        generateAndWriteEnvExample(envExamplePath, options.overwrite);
 
         console.log('✅ Envio files generated!');
       } else {
@@ -115,7 +121,8 @@ program
 program
   .command('take-abi <outDir> [contracts...]')
   .description('Extract ABIs from Foundry build artifacts')
-  .action(async (outDir, contracts) => {
+  .option('--overwrite', 'Overwrite existing files without warning')
+  .action(async (outDir, contracts, options) => {
     try {
       console.log('🔨 Extracting ABIs from Foundry build artifacts...');
 
@@ -125,7 +132,7 @@ program
         process.exit(1);
       }
 
-      await takeAbi(outDir, contracts);
+      await takeAbi(outDir, contracts, options.overwrite);
       console.log('✅ ABIs extracted successfully!');
     } catch (error) {
       console.error('❌ Error extracting ABIs:', error);
@@ -137,6 +144,7 @@ program
   .command('find-start-blocks')
   .description('Auto-discover deployment blocks for all contracts')
   .option('-c, --config <path>', 'Path to config file', './zonder.config.ts')
+  .option('--overwrite', 'Overwrite existing files without warning')
   .action(async (options) => {
     try {
       console.log('🔨 Auto-discovering deployment blocks...');
@@ -157,7 +165,7 @@ program
         process.exit(1);
       }
 
-      const results = await findAllDeploymentBlocks(zonderConfig);
+      const results = await findAllDeploymentBlocks(zonderConfig, options.overwrite);
 
       console.log('\n🎉 Deployment blocks discovered!');
       console.log('📋 Results saved to start-blocks.json');

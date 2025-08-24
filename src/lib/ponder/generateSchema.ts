@@ -1,6 +1,6 @@
-import fs from 'fs';
 import type { Abi } from 'viem';
 
+import { safeWriteFileSync } from '../utils/safeWrite.js';
 import type { ZonderConfig } from '../zonder/types.js';
 import { solidityTypeToPgType } from './solidityTypeToPgType.js';
 
@@ -72,7 +72,7 @@ ${addressIndexes}
 export function generateAndWriteSchema<
   TChains extends Record<string, any>,
   TContracts extends Record<string, Abi>,
->(config: ZonderConfig<TChains, TContracts>, outputPath = 'ponder.schema.ts') {
+>(config: ZonderConfig<TChains, TContracts>, outputPath = 'ponder.schema.ts', overwrite = false) {
   const schemaContent = generateSchema(config);
-  fs.writeFileSync(outputPath, schemaContent);
+  safeWriteFileSync(outputPath, schemaContent, { overwrite });
 }

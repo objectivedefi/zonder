@@ -1,4 +1,3 @@
-import * as fs from 'fs';
 import {
   type Address,
   type PublicClient,
@@ -7,6 +6,7 @@ import {
   http,
 } from 'viem';
 
+import { safeWriteFileSync } from '../utils/safeWrite.js';
 import type { ZonderConfig } from '../zonder/types.js';
 import { findDeploymentBlock } from './findDeploymentBlock.js';
 
@@ -47,9 +47,9 @@ function hasSpecificStartBlock<
   return chainStartBlocks[contractName] !== undefined;
 }
 
-function writeDeploymentBlocks(results: DeploymentResults): void {
+function writeDeploymentBlocks(results: DeploymentResults, overwrite: boolean = false): void {
   try {
-    fs.writeFileSync('start-blocks.json', JSON.stringify(results, null, 2));
+    safeWriteFileSync('start-blocks.json', JSON.stringify(results, null, 2), { overwrite });
   } catch (error) {
     console.error('Failed to write start-blocks.json:', error);
   }
@@ -58,7 +58,10 @@ function writeDeploymentBlocks(results: DeploymentResults): void {
 export async function findAllDeploymentBlocks<
   TChains extends Record<string, ViemChain>,
   TContracts extends Record<string, any>,
->(config: ZonderConfig<TChains, TContracts>): Promise<DeploymentResults> {
+>(
+  config: ZonderConfig<TChains, TContracts>,
+  overwrite: boolean = false,
+): Promise<DeploymentResults> {
   const results: DeploymentResults = {};
 
   // Pre-populate with existing start blocks from config
@@ -76,7 +79,7 @@ export async function findAllDeploymentBlocks<
   }
 
   // Initialize start-blocks.json with existing blocks
-  writeDeploymentBlocks(results);
+  writeDeploymentBlocks(results, overwrite);
 
   // Get all chain names from the config
   const chainNames = Object.keys(config.addresses) as (keyof TChains)[];
@@ -144,7 +147,7 @@ export async function findAllDeploymentBlocks<
               ) {
                 chainResults[contractName] = blockNumber;
                 // Write to file immediately after discovering each block
-                writeDeploymentBlocks(results);
+                writeDeploymentBlocks(results, overwrite);
               }
               console.log(blockNumber);
               break; // Found deployment block, no need to check other addresses

@@ -1,4 +1,4 @@
-import fs from 'fs';
+import { safeWriteFileSync } from '../utils/safeWrite.js';
 
 export function generateIndex(): string {
   return `/// @ts-nocheck - Ponder type generation does not work with zonder
@@ -49,7 +49,7 @@ Object.entries(zonderConfig.contracts).forEach(([contractName, abi]) => {
 }
 
 // Script wrapper for CLI usage
-export function generateAndWriteIndex(outputPath = './src/index.ts') {
+export function generateAndWriteIndex(outputPath = './src/index.ts', overwrite = false) {
   const indexContent = generateIndex();
-  fs.writeFileSync(outputPath, indexContent);
+  safeWriteFileSync(outputPath, indexContent, { overwrite });
 }

@@ -1,6 +1,7 @@
 import fs from 'fs';
 import type { Abi } from 'viem';
 
+import { safeWriteFileSync } from '../utils/safeWrite.js';
 import type { ZonderConfig } from '../zonder/types.js';
 import { formatEventSignature } from './formatEventSignature.js';
 
@@ -21,61 +22,7 @@ export function generateEventHandlers<
   }
 
   // Build imports
-  const imports = `import { ${contractsWithEvents.join(', ')}, EventLog } from "generated";\n`;
-
-  // Helper functions (kept as-is)
-  const helperFunctions = `
-function replacer(_: string, value: any) {
-  if (typeof value === "bigint") {
-    return \`\${value.toString()}n\`;
-  }
-  return value;
-}
-
-function extractEventParams<params extends { [key: string]: any }>(
-  event: EventLog<params>
-) {
-  const id = \`\${event.chainId}_\${event.block.number}_\${event.logIndex}\`;
-
-  const baseParams = {
-    id,
-    chainId: event.chainId,
-    txHash: event.transaction.hash,
-    blockNumber: BigInt(event.block.number),
-    timestamp: BigInt(event.block.timestamp),
-    logIndex: event.logIndex,
-    logAddress: event.srcAddress,
-  };
-
-  const eventParams = Object.entries(event.params ?? {}).reduce(
-    (acc, [key, value]) => {
-      if (Array.isArray(value)) {
-        acc[\`evt_\${key}\`] = JSON.stringify(value, replacer);
-      } else {
-        acc[\`evt_\${key}\`] = value;
-      }
-      return acc;
-    },
-    {} as Record<string, any>
-  );
-
-  return {
-    ...baseParams,
-    ...eventParams,
-  };
-}
-
-export function registerHandler(
-  handler: any,
-  contractName: string,
-  eventName: string
-) {
-  return handler(async ({ event, context }: any) => {
-    const contextKey = \`\${contractName}_\${eventName}\`;
-    context[contextKey].set(extractEventParams(event));
-  });
-}
-`;
+  const imports = `import { ${contractsWithEvents.join(', ')} } from "generated";\n`;
 
   /**
    * Generates factory contract registration handlers
@@ -123,17 +70,45 @@ ${factoryContractName}.${eventSignature.split('(')[0]}.contractRegister(({ event
   // Generate factory contract registrations
   const factoryRegistrations = generateFactoryRegistrations(config);
 
-  // Generate registration for each contract
-  const registrations = contractsWithEvents
-    .map(
-      (contractName) => `
-Object.entries(${contractName}).forEach(([eventName, { handler }]) =>
-  registerHandler(handler, "${contractName}", eventName)
-);`,
-    )
-    .join('\n');
+  // Generate individual registration for each event in each contract
+  const registrations: string[] = [];
 
-  return imports + helperFunctions + factoryRegistrations + registrations + '\n';
+  Object.entries(config.contracts || {}).forEach(([contractName, abi]) => {
+    const events = abi.filter((item) => item.type === 'event');
+
+    events.forEach((event) => {
+      const eventName = event.name;
+
+      // Build event parameter assignments
+      const eventParams =
+        event.inputs
+          ?.map((input) => {
+            const paramName = input.name || 'param';
+            if (input.type.startsWith('tuple') || input.type.includes('[')) {
+              // For complex types (arrays, tuples), stringify them
+              return `    evt_${paramName}: JSON.stringify(event.params.${paramName}, (_, v) => typeof v === 'bigint' ? \`\${v.toString()}n\` : v),`;
+            } else {
+              return `    evt_${paramName}: event.params.${paramName},`;
+            }
+          })
+          .join('\n') || '';
+
+      registrations.push(`
+${contractName}.${eventName}.handler(async ({ event, context }) => {
+  context.${contractName}_${eventName}.set({
+    id: \`\${event.chainId}_\${event.block.number}_\${event.logIndex}\`,
+    chainId: event.chainId,
+    txHash: event.transaction.hash,
+    blockNumber: BigInt(event.block.number),
+    timestamp: BigInt(event.block.timestamp),
+    logIndex: event.logIndex,
+    logAddress: event.srcAddress,${eventParams ? '\n' + eventParams : ''}
+  });
+});`);
+    });
+  });
+
+  return imports + factoryRegistrations + registrations.join('\n') + '\n';
 }
 
 /**
@@ -142,7 +117,11 @@ Object.entries(${contractName}).forEach(([eventName, { handler }]) =>
 export function generateAndWriteEventHandlers<
   TChains extends Record<string, any>,
   TContracts extends Record<string, Abi>,
->(config: ZonderConfig<TChains, TContracts>, outputPath = 'src/EventHandlers.ts') {
+>(
+  config: ZonderConfig<TChains, TContracts>,
+  outputPath = 'src/EventHandlers.ts',
+  overwrite = false,
+) {
   const handlersContent = generateEventHandlers(config);
 
   // Ensure directory exists
@@ -151,6 +130,6 @@ export function generateAndWriteEventHandlers<
     fs.mkdirSync(dir, { recursive: true });
   }
 
-  fs.writeFileSync(outputPath, handlersContent);
+  safeWriteFileSync(outputPath, handlersContent, { overwrite });
   return handlersContent;
 }

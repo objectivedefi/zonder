@@ -1,6 +1,6 @@
-import fs from 'fs';
 import type { Abi } from 'viem';
 
+import { safeWriteFileSync } from '../utils/safeWrite.js';
 import type { ZonderConfig } from '../zonder/types.js';
 import { solidityTypeToGraphQLType } from './solidityTypeToGraphQLType.js';
 
@@ -65,7 +65,7 @@ export function generateGraphQLSchema<
 export function generateAndWriteGraphQLSchema<
   TChains extends Record<string, any>,
   TContracts extends Record<string, Abi>,
->(config: ZonderConfig<TChains, TContracts>) {
+>(config: ZonderConfig<TChains, TContracts>, overwrite = false) {
   const schemaContent = generateGraphQLSchema(config);
-  fs.writeFileSync('schema.graphql', schemaContent);
+  safeWriteFileSync('schema.graphql', schemaContent, { overwrite });
 }

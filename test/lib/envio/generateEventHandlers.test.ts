@@ -21,15 +21,19 @@ describe('generateEventHandlers', () => {
     const handlers = generateEventHandlers(config);
 
     // Check imports
-    expect(handlers).toContain('import { EVault, EventLog } from "generated"');
+    expect(handlers).toContain('import { EVault } from "generated"');
 
-    // Check helper functions
-    expect(handlers).toContain('function extractEventParams');
-    expect(handlers).toContain('export function registerHandler');
+    // Check individual handler registrations
+    expect(handlers).toContain('EVault.Deposit.handler(async ({ event, context }) => {');
+    expect(handlers).toContain('EVault.Borrow.handler(async ({ event, context }) => {');
 
-    // Check contract registration
-    expect(handlers).toContain('Object.entries(EVault).forEach');
-    expect(handlers).toContain('registerHandler(handler, "EVault", eventName)');
+    // Check context keys
+    expect(handlers).toContain('context.EVault_Deposit.set({');
+    expect(handlers).toContain('context.EVault_Borrow.set({');
+
+    // Check field mappings
+    expect(handlers).toContain('evt_sender: event.params.sender');
+    expect(handlers).toContain('evt_assets: event.params.assets');
   });
 
   it('should generate handlers for multiple contracts', () => {
@@ -51,17 +55,17 @@ describe('generateEventHandlers', () => {
     const handlers = generateEventHandlers(config);
 
     // Check imports for all contracts
-    expect(handlers).toContain('import { TokenA, TokenB, Oracle, EventLog } from "generated"');
+    expect(handlers).toContain('import { TokenA, TokenB, Oracle } from "generated"');
 
-    // Check registrations for each contract
-    expect(handlers).toContain('Object.entries(TokenA).forEach');
-    expect(handlers).toContain('registerHandler(handler, "TokenA", eventName)');
+    // Check individual handler registrations
+    expect(handlers).toContain('TokenA.Transfer.handler(async ({ event, context }) => {');
+    expect(handlers).toContain('TokenB.Approval.handler(async ({ event, context }) => {');
+    expect(handlers).toContain('Oracle.PriceUpdated.handler(async ({ event, context }) => {');
 
-    expect(handlers).toContain('Object.entries(TokenB).forEach');
-    expect(handlers).toContain('registerHandler(handler, "TokenB", eventName)');
-
-    expect(handlers).toContain('Object.entries(Oracle).forEach');
-    expect(handlers).toContain('registerHandler(handler, "Oracle", eventName)');
+    // Check context keys
+    expect(handlers).toContain('context.TokenA_Transfer.set({');
+    expect(handlers).toContain('context.TokenB_Approval.set({');
+    expect(handlers).toContain('context.Oracle_PriceUpdated.set({');
   });
 
   it('should handle contracts with no events', () => {
@@ -92,21 +96,17 @@ describe('generateEventHandlers', () => {
 
     const handlers = generateEventHandlers(config);
 
-    // Check extractEventParams function
-    expect(handlers).toContain(
-      'const id = `${event.chainId}_${event.block.number}_${event.logIndex}`',
-    );
+    // Check direct field assignments in handler
+    expect(handlers).toContain('Test.TestEvent.handler(async ({ event, context }) => {');
+    expect(handlers).toContain('context.Test_TestEvent.set({');
+    expect(handlers).toContain('id: `${event.chainId}_${event.block.number}_${event.logIndex}`');
     expect(handlers).toContain('chainId: event.chainId');
-    expect(handlers).toContain('txHash: event.transaction');
+    expect(handlers).toContain('txHash: event.transaction.hash');
     expect(handlers).toContain('blockNumber: BigInt(event.block.number)');
     expect(handlers).toContain('timestamp: BigInt(event.block.timestamp)');
     expect(handlers).toContain('logIndex: event.logIndex');
     expect(handlers).toContain('logAddress: event.srcAddress');
-    expect(handlers).toContain('acc[`evt_${key}`] = value');
-
-    // Check registerHandler function
-    expect(handlers).toContain('const contextKey = `${contractName}_${eventName}`');
-    expect(handlers).toContain('context[contextKey].set(extractEventParams(event))');
+    expect(handlers).toContain('evt_value: event.params.value');
   });
 
   it('should generate factory contract registrations', () => {
@@ -134,7 +134,7 @@ describe('generateEventHandlers', () => {
     const handlers = generateEventHandlers(config);
 
     // Should include both contracts in imports
-    expect(handlers).toContain('import { Factory, Pair, EventLog } from "generated"');
+    expect(handlers).toContain('import { Factory, Pair } from "generated"');
 
     // Should include factory contract registration comment
     expect(handlers).toContain('// Factory contract registration for Pair');
@@ -145,8 +145,8 @@ describe('generateEventHandlers', () => {
     expect(handlers).toContain('context.addPair(deployedAddress);');
 
     // Should still include regular event handlers for both contracts
-    expect(handlers).toContain('Object.entries(Factory).forEach');
-    expect(handlers).toContain('Object.entries(Pair).forEach');
+    expect(handlers).toContain('Factory.PairCreated.handler(async ({ event, context }) => {');
+    expect(handlers).toContain('Pair.Transfer.handler(async ({ event, context }) => {');
   });
 
   it('should handle config without factory contracts', () => {
@@ -169,8 +169,8 @@ describe('generateEventHandlers', () => {
     expect(handlers).not.toContain('Factory contract registration');
 
     // Should still work normally
-    expect(handlers).toContain('import { Token, EventLog } from "generated"');
-    expect(handlers).toContain('Object.entries(Token).forEach');
+    expect(handlers).toContain('import { Token } from "generated"');
+    expect(handlers).toContain('Token.Transfer.handler(async ({ event, context }) => {');
   });
 
   it('should NOT generate registration for factory-deployed contracts with no events', () => {
@@ -199,7 +199,7 @@ describe('generateEventHandlers', () => {
     const handlers = generateEventHandlers(config);
 
     // Should include Factory in imports (has events)
-    expect(handlers).toContain('import { Factory, EventLog } from "generated"');
+    expect(handlers).toContain('import { Factory } from "generated"');
 
     // Should NOT include factory contract registration since DeployedContract has no events
     expect(handlers).not.toContain('// Factory contract registration for DeployedContract');
@@ -207,7 +207,7 @@ describe('generateEventHandlers', () => {
     expect(handlers).not.toContain('context.addDeployedContract');
 
     // Should include regular event handlers only for Factory (DeployedContract has no events)
-    expect(handlers).toContain('Object.entries(Factory).forEach');
-    expect(handlers).not.toContain('Object.entries(DeployedContract).forEach');
+    expect(handlers).toContain('Factory.ProxyCreated.handler(async ({ event, context }) => {');
+    expect(handlers).not.toContain('DeployedContract');
   });
 });

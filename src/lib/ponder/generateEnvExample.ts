@@ -1,5 +1,4 @@
-import fs from 'fs';
-
+import { safeWriteFileSync } from '../utils/safeWrite.js';
 import type { ZonderConfig } from '../zonder/types.js';
 
 export function generatePonderEnvExample<
@@ -28,7 +27,7 @@ DATABASE_URL=
 export function generateAndWritePonderEnvExample<
   TChains extends Record<string, any>,
   TContracts extends Record<string, any>,
->(config: ZonderConfig<TChains, TContracts>, outputPath = '.env.example'): void {
+>(config: ZonderConfig<TChains, TContracts>, outputPath = '.env.example', overwrite = false): void {
   const content = generatePonderEnvExample(config);
-  fs.writeFileSync(outputPath, content);
+  safeWriteFileSync(outputPath, content, { overwrite });
 }

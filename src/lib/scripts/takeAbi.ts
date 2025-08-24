@@ -2,6 +2,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { Abi } from 'viem';
 
+import { safeWriteFileSync } from '../utils/safeWrite.js';
+
 interface FoundryOutput {
   abi: Abi;
 }
@@ -65,6 +67,7 @@ export function extractSpecificContract(
   foundryOutDir: string,
   contractName: string,
   outputDir: string,
+  overwrite: boolean = false,
 ): boolean {
   if (!fs.existsSync(foundryOutDir)) {
     console.error(`Foundry output directory not found: ${foundryOutDir}`);
@@ -105,8 +108,7 @@ export function extractSpecificContract(
   const tsContent = generateTypeScriptAbiFile(abi);
   const outputPath = path.join(outputDir, `${contractName}.ts`);
 
-  fs.writeFileSync(outputPath, tsContent);
-  console.log(`Generated: ${outputPath}`);
+  safeWriteFileSync(outputPath, tsContent, { overwrite });
   return true;
 }
 
@@ -114,6 +116,7 @@ export function extractMultipleContracts(
   foundryOutDir: string,
   contractNames: string[],
   outputDir: string = './abis',
+  overwrite: boolean = false,
 ): void {
   const foundryOutDirResolved = path.resolve(foundryOutDir);
   const outputDirResolved = path.resolve(outputDir);
@@ -128,7 +131,12 @@ export function extractMultipleContracts(
   let failCount = 0;
 
   for (const contractName of contractNames) {
-    const success = extractSpecificContract(foundryOutDirResolved, contractName, outputDirResolved);
+    const success = extractSpecificContract(
+      foundryOutDirResolved,
+      contractName,
+      outputDirResolved,
+      overwrite,
+    );
     if (success) {
       successCount++;
     } else {
@@ -142,6 +150,10 @@ export function extractMultipleContracts(
   }
 }
 
-export async function takeAbi(outDir: string, contracts: string[]): Promise<void> {
-  return extractMultipleContracts(outDir, contracts, './abis');
+export async function takeAbi(
+  outDir: string,
+  contracts: string[],
+  overwrite: boolean = false,
+): Promise<void> {
+  return extractMultipleContracts(outDir, contracts, './abis', overwrite);
 }
