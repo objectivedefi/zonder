@@ -1,3 +1,4 @@
+import * as yaml from 'js-yaml';
 import { type Address, parseAbi } from 'viem';
 import { arbitrum, mainnet } from 'viem/chains';
 import { describe, expect, it } from 'vitest';
@@ -415,5 +416,83 @@ describe('generateEnvioConfig', () => {
 
     // Should handle tuple types correctly in event signature
     expect(yamlContent).toContain('event: ComplexEvent((address,uint256) indexed data, bool flag)');
+  });
+
+  it('should include all contracts with events in every network, even without addresses', async () => {
+    const config: ZonderConfig<any, any> = {
+      chains: {
+        mainnet,
+        optimism: { id: 10, name: 'optimism' } as any,
+      },
+      contracts: {
+        TokenFactory: parseAbi([
+          'event TokenCreated(address indexed token, address indexed creator)',
+        ]),
+        Token: parseAbi([
+          'event Transfer(address indexed from, address indexed to, uint256 value)',
+        ]),
+        UniswapPool: parseAbi([
+          'event Swap(address indexed sender, address indexed recipient, int256 amount0, int256 amount1)',
+        ]),
+        // Contract with no events should not be included
+        NoEventsContract: parseAbi(['function balanceOf(address owner) view returns (uint256)']),
+      },
+      addresses: {
+        mainnet: {
+          TokenFactory: '0x1234567890123456789012345678901234567890',
+          // Token has no address (factory-deployed)
+          // UniswapPool has no address (needs to be discovered)
+        },
+        optimism: {
+          TokenFactory: '0x1234567890123456789012345678901234567890',
+        },
+      },
+      factoryDeployed: {
+        Token: {
+          event: parseAbi([
+            'event TokenCreated(address indexed token, address indexed creator)',
+          ])[0],
+          parameter: 'token',
+          deployedBy: 'TokenFactory' as any,
+        },
+      },
+    };
+
+    const yamlContent = await generateEnvioConfig(config);
+    const parsedYaml = yaml.load(yamlContent) as any;
+
+    // Check mainnet network includes all contracts with events
+    const mainnetNetwork = parsedYaml.networks.find((n: any) => n.id === 1);
+    expect(mainnetNetwork).toBeDefined();
+    expect(mainnetNetwork.contracts).toHaveLength(3); // TokenFactory, Token, UniswapPool (not NoEventsContract)
+
+    const mainnetContractNames = mainnetNetwork.contracts.map((c: any) => c.name);
+    expect(mainnetContractNames).toContain('TokenFactory');
+    expect(mainnetContractNames).toContain('Token');
+    expect(mainnetContractNames).toContain('UniswapPool');
+    expect(mainnetContractNames).not.toContain('NoEventsContract');
+
+    // TokenFactory should have address
+    const mainnetTokenFactory = mainnetNetwork.contracts.find(
+      (c: any) => c.name === 'TokenFactory',
+    );
+    expect(mainnetTokenFactory.address).toBeDefined();
+
+    // Token and UniswapPool should NOT have address
+    const mainnetToken = mainnetNetwork.contracts.find((c: any) => c.name === 'Token');
+    expect(mainnetToken.address).toBeUndefined();
+
+    const mainnetUniswap = mainnetNetwork.contracts.find((c: any) => c.name === 'UniswapPool');
+    expect(mainnetUniswap.address).toBeUndefined();
+
+    // Check optimism network also includes all contracts with events
+    const optimismNetwork = parsedYaml.networks.find((n: any) => n.id === 10);
+    expect(optimismNetwork).toBeDefined();
+    expect(optimismNetwork.contracts).toHaveLength(3);
+
+    const optimismContractNames = optimismNetwork.contracts.map((c: any) => c.name);
+    expect(optimismContractNames).toContain('TokenFactory');
+    expect(optimismContractNames).toContain('Token');
+    expect(optimismContractNames).toContain('UniswapPool');
   });
 });

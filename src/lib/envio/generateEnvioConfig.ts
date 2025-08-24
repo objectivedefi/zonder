@@ -84,6 +84,9 @@ export function generateEnvioConfig<
     // Find minimum start block for chain using resolver
     const minStartBlock = resolveMinStartBlock(config.startBlocks, chainName, addresses);
 
+    // Track which contracts have been added
+    const addedContracts = new Set<string>();
+
     // Add contracts with static addresses
     Object.entries(addresses || {}).forEach(([contractName, address]) => {
       if (address) {
@@ -91,38 +94,36 @@ export function generateEnvioConfig<
 
         // Check if this is a factory-deployed contract
         const factoryConfig = config.factoryDeployed?.[contractName];
-        if (factoryConfig) {
-          // Skip - will be handled in factory contracts section below
-          return;
-        } else {
+        if (!factoryConfig) {
           networkContracts.push({
             name: contractName,
             address: Array.isArray(address) ? address : [address],
             start_block: contractStartBlock,
           });
+          addedContracts.add(contractName);
         }
       }
     });
 
-    // Add factory-deployed contracts (without addresses, but they need to be listed)
-    if (config.factoryDeployed) {
-      Object.entries(config.factoryDeployed).forEach(([contractName, factoryConfig]) => {
-        if (!factoryConfig) return;
+    // Add ALL contracts that have events, whether they have addresses or not
+    Object.entries(config.contracts || {}).forEach(([contractName, abi]) => {
+      // Skip if already added
+      if (addedContracts.has(contractName)) return;
 
-        // Only add if the contract has events (otherwise it's useless)
-        const contractAbi = config.contracts?.[contractName];
-        const hasEvents = contractAbi?.some((item: any) => item.type === 'event');
+      // Check if contract has events
+      const hasEvents = abi.some((item) => item.type === 'event');
+      if (!hasEvents) return;
 
-        if (hasEvents) {
-          const contractStartBlock = resolveStartBlock(config.startBlocks, chainName, contractName);
-          networkContracts.push({
-            name: contractName,
-            // No address field for factory-deployed contracts
-            start_block: contractStartBlock,
-          });
-        }
+      const contractStartBlock = resolveStartBlock(config.startBlocks, chainName, contractName);
+
+      // Add contract without address (for factory-deployed or contracts that need dynamic discovery)
+      networkContracts.push({
+        name: contractName,
+        // No address field for contracts without static addresses
+        start_block: contractStartBlock,
       });
-    }
+      addedContracts.add(contractName);
+    });
 
     if (networkContracts.length > 0) {
       envioConfig.networks.push({
