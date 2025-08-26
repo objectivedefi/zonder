@@ -3,6 +3,7 @@ import type { Abi } from 'viem';
 
 import { safeWriteFileSync } from '../utils/safeWrite.js';
 import type { ZonderConfig } from '../zonder/types.js';
+import { formatEventName } from './formatEventName.js';
 import { formatEventSignature } from './formatEventSignature.js';
 
 /**
@@ -86,9 +87,9 @@ ${factoryContractName}.${eventSignature.split('(')[0]}.contractRegister(({ event
             const paramName = input.name || 'param';
             if (input.type.startsWith('tuple') || input.type.includes('[')) {
               // For complex types (arrays, tuples), stringify them
-              return `    evt_${paramName}: JSON.stringify(event.params.${paramName}, (_, v) => typeof v === 'bigint' ? \`\${v.toString()}n\` : v),`;
+              return `    evt_${formatEventName(paramName)}: JSON.stringify(event.params.${paramName}, (_, v) => typeof v === 'bigint' ? \`\${v.toString()}n\` : v),`;
             } else {
-              return `    evt_${paramName}: event.params.${paramName},`;
+              return `    evt_${formatEventName(paramName)}: event.params.${paramName},`;
             }
           })
           .join('\n') || '';
@@ -97,12 +98,12 @@ ${factoryContractName}.${eventSignature.split('(')[0]}.contractRegister(({ event
 ${contractName}.${eventName}.handler(async ({ event, context }) => {
   context.${contractName}_${eventName}.set({
     id: \`\${event.chainId}_\${event.block.number}_\${event.logIndex}\`,
-    chainId: event.chainId,
-    txHash: event.transaction.hash,
-    blockNumber: BigInt(event.block.number),
-    timestamp: BigInt(event.block.timestamp),
-    logIndex: event.logIndex,
-    logAddress: event.srcAddress,${eventParams ? '\n' + eventParams : ''}
+    chain_id: event.chainId,
+    tx_hash: event.transaction.hash,
+    block_number: BigInt(event.block.number),
+    block_timestamp: BigInt(event.block.timestamp),
+    log_index: event.logIndex,
+    log_address: event.srcAddress,${eventParams ? '\n' + eventParams : ''}
   });
 });`);
     });

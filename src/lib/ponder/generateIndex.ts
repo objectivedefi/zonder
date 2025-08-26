@@ -36,7 +36,7 @@ Object.entries(zonderConfig.contracts).forEach(([contractName, abi]) => {
         chainId: context.chain.id,
         txHash: event.transaction.hash,
         blockNumber: event.block.number,
-        timestamp: event.block.timestamp,
+        blockTimestamp: event.block.timestamp,
         logIndex: event.log.logIndex,
         logAddress: event.log.address,
         ...eventArgs,

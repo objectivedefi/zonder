@@ -1,6 +1,6 @@
 {
   "name": "zonder",
-  "version": "0.3.4",
+  "version": "0.4.0",
   "description": "Ergonomic multi-chain indexing framework with dual runtime support for Ponder and Envio.",
   "main": "dist/lib/index.js",
   "types": "dist/lib/index.d.ts",

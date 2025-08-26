@@ -11,7 +11,7 @@ describe('generateEventHandlers', () => {
       contracts: {
         EVault: parseAbi([
           'event Deposit(address indexed sender, address indexed owner, uint256 assets, uint256 shares)',
-          'event Borrow(address indexed account, uint256 assets)',
+          'event Borrow(address indexed account, uint256 assetsValue)',
         ]),
       },
       addresses: {},
@@ -33,7 +33,7 @@ describe('generateEventHandlers', () => {
 
     // Check field mappings
     expect(handlers).toContain('evt_sender: event.params.sender');
-    expect(handlers).toContain('evt_assets: event.params.assets');
+    expect(handlers).toContain('evt_assets_value: event.params.assetsValue');
   });
 
   it('should generate handlers for multiple contracts', () => {
@@ -100,12 +100,12 @@ describe('generateEventHandlers', () => {
     expect(handlers).toContain('Test.TestEvent.handler(async ({ event, context }) => {');
     expect(handlers).toContain('context.Test_TestEvent.set({');
     expect(handlers).toContain('id: `${event.chainId}_${event.block.number}_${event.logIndex}`');
-    expect(handlers).toContain('chainId: event.chainId');
-    expect(handlers).toContain('txHash: event.transaction.hash');
-    expect(handlers).toContain('blockNumber: BigInt(event.block.number)');
-    expect(handlers).toContain('timestamp: BigInt(event.block.timestamp)');
-    expect(handlers).toContain('logIndex: event.logIndex');
-    expect(handlers).toContain('logAddress: event.srcAddress');
+    expect(handlers).toContain('chain_id: event.chainId');
+    expect(handlers).toContain('tx_hash: event.transaction.hash');
+    expect(handlers).toContain('block_number: BigInt(event.block.number)');
+    expect(handlers).toContain('block_timestamp: BigInt(event.block.timestamp)');
+    expect(handlers).toContain('log_index: event.logIndex');
+    expect(handlers).toContain('log_address: event.srcAddress');
     expect(handlers).toContain('evt_value: event.params.value');
   });
 

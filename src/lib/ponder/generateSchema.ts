@@ -20,7 +20,7 @@ export function generateSchema<
     chainId: t.integer().notNull(),
     txHash: t.hex().notNull(),
     blockNumber: t.bigint().notNull(),
-    timestamp: t.bigint().notNull(),
+    blockTimestamp: t.bigint().notNull(),
     logIndex: t.integer().notNull(),
     logAddress: t.hex().notNull(),
   };
@@ -54,7 +54,7 @@ export function generateSchema<
 ${eventArgs}
   }),
   (t) => ({
-    chainIdTimestampIdx: index().using('btree', t.chainId, t.timestamp),
+    chainIdBlockTimestampIdx: index().using('btree', t.chainId, t.blockTimestamp),
 ${addressIndexes}
   })),`;
     });

@@ -2,6 +2,7 @@ import type { Abi } from 'viem';
 
 import { safeWriteFileSync } from '../utils/safeWrite.js';
 import type { ZonderConfig } from '../zonder/types.js';
+import { formatEventName } from './formatEventName.js';
 import { solidityTypeToGraphQLType } from './solidityTypeToGraphQLType.js';
 
 /**
@@ -21,32 +22,32 @@ export function generateGraphQLSchema<
       const typeName = `${contractName}_${event.name}`;
 
       // Generate indexes
-      const indexes = [`@index(fields: ["chainId", "timestamp"])`];
+      const indexes = [`@index(fields: ["chain_id", "block_timestamp"])`];
 
       // Add indexes for address fields
       if (event.inputs && event.inputs.length > 0) {
         event.inputs.forEach((input) => {
           if (input.type === 'address') {
-            const fieldName = `evt_${input.name || 'param'}`;
-            indexes.push(`@index(fields: ["chainId", "${fieldName}"])`);
+            const fieldName = `evt_${formatEventName(input.name || 'param')}`;
+            indexes.push(`@index(fields: ["chain_id", "${fieldName}"])`);
           }
         });
       }
 
       schema += `type ${typeName}\n  ${indexes.join('\n  ')} {\n`;
       schema += `  id: ID!
-  chainId: Int!
-  txHash: String!
-  blockNumber: BigInt!
-  timestamp: BigInt!
-  logIndex: Int!
-  logAddress: String!\n`;
+  chain_id: Int!
+  tx_hash: String!
+  block_number: BigInt!
+  block_timestamp: BigInt!
+  log_index: Int!
+  log_address: String!\n`;
 
       // Add event-specific fields
       if (event.inputs && event.inputs.length > 0) {
         schema += '\n';
         event.inputs.forEach((input) => {
-          const fieldName = `evt_${input.name || 'param'}`;
+          const fieldName = `evt_${formatEventName(input.name || 'param')}`;
           const graphqlType = solidityTypeToGraphQLType(input.type);
           schema += `  ${fieldName}: ${graphqlType}!\n`;
         });
