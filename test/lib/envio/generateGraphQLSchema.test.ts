@@ -22,15 +22,15 @@ describe('generateGraphQLSchema', () => {
 
     // Check EVault_Deposit type
     expect(schema).toContain('type EVault_Deposit');
-    expect(schema).toContain('@index(fields: ["chainId", "timestamp"])');
-    expect(schema).toContain('@index(fields: ["chainId", "evt_sender"])');
-    expect(schema).toContain('@index(fields: ["chainId", "evt_owner"])');
+    expect(schema).toContain('@index(fields: ["chain_id", "block_timestamp"])');
+    expect(schema).toContain('@index(fields: ["chain_id", "evt_sender"])');
+    expect(schema).toContain('@index(fields: ["chain_id", "evt_owner"])');
     expect(schema).toContain('  id: ID!');
-    expect(schema).toContain('  chainId: Int!');
-    expect(schema).toContain('  blockNumber: BigInt!');
-    expect(schema).toContain('  timestamp: BigInt!');
-    expect(schema).toContain('  logIndex: Int!');
-    expect(schema).toContain('  logAddress: String!');
+    expect(schema).toContain('  chain_id: Int!');
+    expect(schema).toContain('  block_number: BigInt!');
+    expect(schema).toContain('  block_timestamp: BigInt!');
+    expect(schema).toContain('  log_index: Int!');
+    expect(schema).toContain('  log_address: String!');
     expect(schema).toContain('  evt_sender: String!');
     expect(schema).toContain('  evt_owner: String!');
     expect(schema).toContain('  evt_assets: BigInt!');
@@ -38,7 +38,7 @@ describe('generateGraphQLSchema', () => {
 
     // Check EVault_Borrow type
     expect(schema).toContain('type EVault_Borrow');
-    expect(schema).toContain('@index(fields: ["chainId", "evt_account"])');
+    expect(schema).toContain('@index(fields: ["chain_id", "evt_account"])');
     expect(schema).toContain('  evt_account: String!');
     expect(schema).toContain('  evt_assets: BigInt!');
   });
@@ -59,9 +59,9 @@ describe('generateGraphQLSchema', () => {
 
     expect(schema).toContain('type TestContract_TestEvent');
     expect(schema).toContain('  evt_flag: Boolean!');
-    expect(schema).toContain('  evt_smallNum: BigInt!'); // All int/uint types now map to BigInt for Envio
-    expect(schema).toContain('  evt_bigNum: BigInt!'); // uint256 needs BigInt
-    expect(schema).toContain('  evt_signedNum: BigInt!'); // int256 needs BigInt
+    expect(schema).toContain('  evt_small_num: BigInt!'); // All int/uint types now map to BigInt for Envio
+    expect(schema).toContain('  evt_big_num: BigInt!'); // uint256 needs BigInt
+    expect(schema).toContain('  evt_signed_num: BigInt!'); // int256 needs BigInt
     expect(schema).toContain('  evt_hash: String!'); // bytes32 as String
     expect(schema).toContain('  evt_name: String!');
     expect(schema).toContain('  evt_users: String!'); // address[] now maps to String! (JSON) for Envio
@@ -82,7 +82,7 @@ describe('generateGraphQLSchema', () => {
     expect(schema).toContain('type SimpleContract_EmptyEvent');
     // Should still have metadata fields
     expect(schema).toContain('  id: ID!');
-    expect(schema).toContain('  chainId: Int!');
+    expect(schema).toContain('  chain_id: Int!');
     // Should not have any evt_ fields
     expect(schema).not.toContain('evt_');
   });
@@ -148,7 +148,7 @@ describe('generateGraphQLSchema', () => {
 
     expect(schema).toContain('type EULOFTAdapter_EnforcedOptionSet');
     // Tuple arrays are serialized as a single String (JSON), not [String!]!
-    expect(schema).toContain('  evt__enforcedOptions: String!');
+    expect(schema).toContain('  evt__enforced_options: String!');
   });
 
   it('should handle array types as JSON strings for Envio', () => {
@@ -168,7 +168,7 @@ describe('generateGraphQLSchema', () => {
 
     expect(schema).toContain('type QueueContract_SetSupplyQueue');
     expect(schema).toContain('  evt_caller: String!');
-    expect(schema).toContain('  evt_newSupplyQueue: String!'); // address[] as String (JSON)
+    expect(schema).toContain('  evt_new_supply_queue: String!'); // address[] as String (JSON)
 
     expect(schema).toContain('type QueueContract_UpdatedValues');
     expect(schema).toContain('  evt_amounts: String!'); // uint256[] as String (JSON)
@@ -193,10 +193,10 @@ describe('generateGraphQLSchema', () => {
 
     expect(schema).toContain('type NestedArrayContract_MatrixEvent');
     expect(schema).toContain('  evt_matrix: String!'); // uint256[][] as String (JSON)
-    expect(schema).toContain('  evt_deepNested: String!'); // address[][][] as String (JSON)
+    expect(schema).toContain('  evt_deep_nested: String!'); // address[][][] as String (JSON)
 
     expect(schema).toContain('type NestedArrayContract_ComplexNested');
-    expect(schema).toContain('  evt_tupleMatrix: String!'); // tuple[][] as String (JSON)
+    expect(schema).toContain('  evt_tuple_matrix: String!'); // tuple[][] as String (JSON)
   });
 
   it('should generate indexes for address fields', () => {
@@ -216,14 +216,14 @@ describe('generateGraphQLSchema', () => {
 
     // Check ProposalCreated indexes
     expect(schema).toContain('type GovernanceContract_ProposalCreated');
-    expect(schema).toContain('@index(fields: ["chainId", "timestamp"])');
-    expect(schema).toContain('@index(fields: ["chainId", "evt_proposer"])');
+    expect(schema).toContain('@index(fields: ["chain_id", "block_timestamp"])');
+    expect(schema).toContain('@index(fields: ["chain_id", "evt_proposer"])');
     // Arrays of addresses should also get indexed
-    expect(schema).not.toContain('@index(fields: ["chainId", "evt_targets"])'); // Arrays don't get individual indexes
+    expect(schema).not.toContain('@index(fields: ["chain_id", "evt_targets"])'); // Arrays don't get individual indexes
 
     // Check VoteCast indexes
     expect(schema).toContain('type GovernanceContract_VoteCast');
-    expect(schema).toContain('@index(fields: ["chainId", "evt_voter"])');
+    expect(schema).toContain('@index(fields: ["chain_id", "evt_voter"])');
   });
 
   it('should not generate indexes for non-address fields', () => {
@@ -241,12 +241,12 @@ describe('generateGraphQLSchema', () => {
     const schema = generateGraphQLSchema(config);
 
     // Should only have the default timestamp index
-    expect(schema).toContain('@index(fields: ["chainId", "timestamp"])');
+    expect(schema).toContain('@index(fields: ["chain_id", "block_timestamp"])');
     // Should not have indexes for non-address fields
-    expect(schema).not.toContain('@index(fields: ["chainId", "evt_id"])');
-    expect(schema).not.toContain('@index(fields: ["chainId", "evt_hash"])');
-    expect(schema).not.toContain('@index(fields: ["chainId", "evt_metadata"])');
-    expect(schema).not.toContain('@index(fields: ["chainId", "evt_active"])');
+    expect(schema).not.toContain('@index(fields: ["chain_id", "evt_id"])');
+    expect(schema).not.toContain('@index(fields: ["chain_id", "evt_hash"])');
+    expect(schema).not.toContain('@index(fields: ["chain_id", "evt_metadata"])');
+    expect(schema).not.toContain('@index(fields: ["chain_id", "evt_active"])');
   });
 
   it('should add header comment to generated schema', () => {
@@ -280,10 +280,10 @@ describe('generateGraphQLSchema', () => {
 
     // Should have indexes for all address fields
     expect(schema).toContain('type DEXContract_Swap');
-    expect(schema).toContain('@index(fields: ["chainId", "timestamp"])');
-    expect(schema).toContain('@index(fields: ["chainId", "evt_sender"])');
-    expect(schema).toContain('@index(fields: ["chainId", "evt_recipient"])');
-    expect(schema).toContain('@index(fields: ["chainId", "evt_tokenIn"])');
-    expect(schema).toContain('@index(fields: ["chainId", "evt_tokenOut"])');
+    expect(schema).toContain('@index(fields: ["chain_id", "block_timestamp"])');
+    expect(schema).toContain('@index(fields: ["chain_id", "evt_sender"])');
+    expect(schema).toContain('@index(fields: ["chain_id", "evt_recipient"])');
+    expect(schema).toContain('@index(fields: ["chain_id", "evt_token_in"])');
+    expect(schema).toContain('@index(fields: ["chain_id", "evt_token_out"])');
   });
 });

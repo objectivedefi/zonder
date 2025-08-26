@@ -59,7 +59,7 @@ describe('generateSchema', () => {
     expect(schema).toContain('const metadataSchema = (t: any) => {');
     expect(schema).toContain('id: t.text().primaryKey');
     expect(schema).toContain('chainId: t.integer().notNull');
-    expect(schema).toContain('timestamp: t.bigint().notNull');
+    expect(schema).toContain('blockTimestamp: t.bigint().notNull');
 
     // Check contract exports
     expect(schema).toContain('export const Token = {');
@@ -94,7 +94,9 @@ describe('generateSchema', () => {
   it('should use composite index for chainId and timestamp', () => {
     const schema = generateSchema(schemaConfig);
 
-    expect(schema).toContain("chainIdTimestampIdx: index().using('btree', t.chainId, t.timestamp)");
+    expect(schema).toContain(
+      "chainIdBlockTimestampIdx: index().using('btree', t.chainId, t.blockTimestamp)",
+    );
   });
 
   it('should handle contracts with no events', () => {
