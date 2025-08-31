@@ -34,8 +34,8 @@
       "types": "./dist/lib/envio/generateEventHandlers.d.ts"
     },
     "./eventFilters": {
-      "import": "./dist/lib/ponder/eventFilters.js",
-      "types": "./dist/lib/ponder/eventFilters.d.ts"
+      "import": "./dist/lib/zonder/eventFilters.js",
+      "types": "./dist/lib/zonder/eventFilters.d.ts"
     }
   },
   "files": [

@@ -36,7 +36,8 @@ export function generateEventHandlers<
       return '';
     }
 
-    const factoryRegistrations: string[] = [];
+    // Group contracts by their factory event
+    const factoryEvents: Record<string, Array<{ contractName: string; parameter: string }>> = {};
 
     Object.entries(config.factoryDeployed).forEach(([contractName, factoryConfig]) => {
       if (!factoryConfig) return;
@@ -44,7 +45,6 @@ export function generateEventHandlers<
       // Only generate registration if the deployed contract has events to index
       const deployedContractAbi = config.contracts[contractName];
       const hasEvents = deployedContractAbi?.some((item: any) => item.type === 'event');
-
       if (!hasEvents) {
         // Skip registration for contracts with no events - pointless to register them
         return;
@@ -54,15 +54,33 @@ export function generateEventHandlers<
       const eventSignature = formatEventSignature(event);
       const factoryContractName = String(deployedBy);
 
-      // Generate the contractRegister handler
-      const registration = `
-// Factory contract registration for ${contractName}
-${factoryContractName}.${eventSignature.split('(')[0]}.contractRegister(({ event, context }) => {
-  const deployedAddress = event.params.${parameter};
-  context.add${contractName}(deployedAddress);
-});`;
+      const eventKey = `${factoryContractName}.${eventSignature.split('(')[0]}`;
+      (factoryEvents[eventKey] ??= []).push({ contractName, parameter });
+    });
 
-      factoryRegistrations.push(registration);
+    // Generate contractRegister handlers
+    const factoryRegistrations = Object.entries(factoryEvents).map(([eventKey, contracts]) => {
+      const isSingle = contracts.length === 1;
+      const contractNames = contracts.map((c) => c.contractName).join(' and ');
+
+      const body = isSingle
+        ? `  const deployedAddress = event.params.${contracts[0].parameter};
+  context.add${contracts[0].contractName}(deployedAddress);`
+        : contracts
+            .map(({ parameter }) => `  const ${parameter}Address = event.params.${parameter};`)
+            .join('\n') +
+          '\n' +
+          contracts
+            .map(
+              ({ contractName, parameter }) => `  context.add${contractName}(${parameter}Address);`,
+            )
+            .join('\n');
+
+      return `
+// Factory contract registration for ${contractNames}
+${eventKey}.contractRegister(({ event, context }) => {
+${body}
+});`;
     });
 
     return factoryRegistrations.join('\n') + (factoryRegistrations.length > 0 ? '\n' : '');
