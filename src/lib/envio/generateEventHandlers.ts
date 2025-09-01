@@ -54,12 +54,14 @@ export function generateEventHandlers<
       const eventSignature = formatEventSignature(event);
       const factoryContractName = String(deployedBy);
 
-      const eventKey = `${factoryContractName}.${eventSignature.split('(')[0]}`;
-      (factoryEvents[eventKey] ??= []).push({ contractName, parameter });
+      // Group by full signature to prevent overload collisions
+      const groupKey = `${factoryContractName}.${eventSignature}`;
+      (factoryEvents[groupKey] ??= []).push({ contractName, parameter });
     });
 
     // Generate contractRegister handlers
-    const factoryRegistrations = Object.entries(factoryEvents).map(([eventKey, contracts]) => {
+    const factoryRegistrations = Object.entries(factoryEvents).map(([groupKey, contracts]) => {
+      const eventKey = groupKey.slice(0, groupKey.indexOf('(')); // "Factory.EventName"
       const isSingle = contracts.length === 1;
       const contractNames = contracts.map((c) => c.contractName).join(' and ');
 
