@@ -2,7 +2,7 @@ import { safeWriteFileSync } from '../utils/safeWrite.js';
 
 export function generateEnvExample(): string {
   return `# API Key
-ENVIO_API_KEY=
+ENVIO_API_TOKEN=
 
 # DB Connection
 ENVIO_PG_HOST=
