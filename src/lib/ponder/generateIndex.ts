@@ -11,7 +11,14 @@ import { replaceBigInts } from "ponder";
 
 Object.entries(zonderConfig.contracts).forEach(([contractName, abi]) => {
   const events = abi.filter((e) => e.type === "event");
-  events.forEach((eventDefinition) => {
+  
+  // Filter out anonymous events and validate remaining events
+  const validEvents = events.filter((eventDefinition) => {
+    const isValidEvent = validateEventParameters(eventDefinition, contractName);
+    return isValidEvent;
+  });
+  
+  validEvents.forEach((eventDefinition) => {
     const listenerName =
       \`\${contractName}:\${eventDefinition.name}\` as EventNames;
     ponder.on<EventNames>(listenerName, async ({ event, context }) => {

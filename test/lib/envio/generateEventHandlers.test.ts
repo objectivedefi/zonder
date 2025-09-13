@@ -1,5 +1,5 @@
 import { parseAbi } from 'viem';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { generateEventHandlers } from '../../../src/lib/envio/generateEventHandlers.js';
 import type { ZonderConfig } from '../../../src/lib/zonder/types.js';
@@ -114,7 +114,7 @@ describe('generateEventHandlers', () => {
       chains: {},
       contracts: {
         Factory: parseAbi([
-          'event PairCreated(address indexed token0, address indexed token1, address pair, uint256)',
+          'event PairCreated(address indexed token0, address indexed token1, address pair, uint256 timestamp)',
         ]),
         Pair: parseAbi(['event Transfer(address indexed from, address indexed to, uint256 value)']),
       },
@@ -123,7 +123,7 @@ describe('generateEventHandlers', () => {
       factoryDeployed: {
         Pair: {
           event: parseAbi([
-            'event PairCreated(address indexed token0, address indexed token1, address pair, uint256)',
+            'event PairCreated(address indexed token0, address indexed token1, address pair, uint256 timestamp)',
           ])[0],
           parameter: 'pair',
           deployedBy: 'Factory' as any,
@@ -209,5 +209,91 @@ describe('generateEventHandlers', () => {
     // Should include regular event handlers only for Factory (DeployedContract has no events)
     expect(handlers).toContain('Factory.ProxyCreated.handler(async ({ event, context }) => {');
     expect(handlers).not.toContain('DeployedContract');
+  });
+
+  it('should throw error for events with missing parameter names', () => {
+    const config: ZonderConfig<any, any> = {
+      chains: {},
+      contracts: {
+        TestContract: [
+          {
+            anonymous: false,
+            inputs: [{ indexed: false, internalType: 'address', name: '', type: 'address' }],
+            name: 'TestEvent',
+            type: 'event',
+          },
+        ] as any,
+      },
+      addresses: {},
+      startBlocks: {},
+    };
+
+    expect(() => generateEventHandlers(config)).toThrow(
+      'Event parameter at index 0 in event "TestEvent" of contract "TestContract" is missing a name. All event parameters must have names.',
+    );
+  });
+
+  it('should throw error for events with empty string parameter names', () => {
+    const config: ZonderConfig<any, any> = {
+      chains: {},
+      contracts: {
+        TestContract: [
+          {
+            anonymous: false,
+            inputs: [{ indexed: false, internalType: 'address', name: '   ', type: 'address' }],
+            name: 'TestEvent',
+            type: 'event',
+          },
+        ] as any,
+      },
+      addresses: {},
+      startBlocks: {},
+    };
+
+    expect(() => generateEventHandlers(config)).toThrow(
+      'Event parameter at index 0 in event "TestEvent" of contract "TestContract" is missing a name. All event parameters must have names.',
+    );
+  });
+
+  it('should ignore anonymous events and log warning', () => {
+    const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const config: ZonderConfig<any, any> = {
+      chains: {},
+      contracts: {
+        TestContract: [
+          {
+            anonymous: true,
+            inputs: [{ indexed: false, internalType: 'address', name: 'user', type: 'address' }],
+            name: 'AnonymousEvent',
+            type: 'event',
+          },
+          {
+            anonymous: false,
+            inputs: [{ indexed: false, internalType: 'address', name: 'user', type: 'address' }],
+            name: 'RegularEvent',
+            type: 'event',
+          },
+        ] as any,
+      },
+      addresses: {},
+      startBlocks: {},
+    };
+
+    const handlers = generateEventHandlers(config);
+
+    // Should warn about anonymous event
+    expect(consoleSpy).toHaveBeenCalledWith(
+      '⚠️  Anonymous event "AnonymousEvent" in contract "TestContract" will be ignored. Anonymous events cannot be efficiently indexed.',
+    );
+
+    // Should only include the regular event, not the anonymous one
+    expect(handlers).toContain('import { TestContract } from "generated"');
+    expect(handlers).toContain('TestContract.RegularEvent.handler');
+    expect(handlers).not.toContain('TestContract.AnonymousEvent.handler');
+    expect(handlers).toContain('context.TestContract_RegularEvent.set');
+    expect(handlers).not.toContain('context.TestContract_AnonymousEvent.set');
+
+    consoleSpy.mockRestore();
   });
 });

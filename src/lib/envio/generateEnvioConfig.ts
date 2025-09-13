@@ -2,6 +2,7 @@ import * as yaml from 'js-yaml';
 import type { Abi } from 'viem';
 
 import { safeWriteFileSync } from '../utils/safeWrite.js';
+import { validateEventParameters } from '../utils/validateEventParameters.js';
 import { resolveMinStartBlock, resolveStartBlock } from '../zonder/resolveStartBlock.js';
 import type { ZonderConfig } from '../zonder/types.js';
 import { formatEventSignature } from './formatEventSignature.js';
@@ -58,12 +59,18 @@ export function generateEnvioConfig<
     const events = abi.filter((item) => item.type === 'event');
     const isFactoryDeployed = config.factoryDeployed?.[contractName];
 
-    // Only include contract if it has events (factory-deployed contracts with no events are useless)
-    if (envioConfig.contracts && events.length > 0) {
+    // Filter out anonymous events and validate remaining events
+    const validEvents = events.filter((event) => {
+      const isValidEvent = validateEventParameters(event, contractName);
+      return isValidEvent;
+    });
+
+    // Only include contract if it has valid events (factory-deployed contracts with no events are useless)
+    if (envioConfig.contracts && validEvents.length > 0) {
       envioConfig.contracts.push({
         name: contractName,
         handler: `./src/EventHandlers.ts`,
-        events: events.map((event) => ({
+        events: validEvents.map((event) => ({
           event: formatEventSignature(event),
         })),
       });
@@ -105,14 +112,18 @@ export function generateEnvioConfig<
       }
     });
 
-    // Add ALL contracts that have events, whether they have addresses or not
+    // Add ALL contracts that have valid events, whether they have addresses or not
     Object.entries(config.contracts || {}).forEach(([contractName, abi]) => {
       // Skip if already added
       if (addedContracts.has(contractName)) return;
 
-      // Check if contract has events
-      const hasEvents = abi.some((item) => item.type === 'event');
-      if (!hasEvents) return;
+      // Check if contract has valid events (non-anonymous)
+      const events = abi.filter((item) => item.type === 'event');
+      const hasValidEvents = events.some((event) => {
+        const isValidEvent = validateEventParameters(event, contractName);
+        return isValidEvent;
+      });
+      if (!hasValidEvents) return;
 
       const contractStartBlock = resolveStartBlock(config.startBlocks, chainName, contractName);
 

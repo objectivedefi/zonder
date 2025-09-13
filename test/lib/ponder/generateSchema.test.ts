@@ -169,6 +169,52 @@ describe('generateSchema', () => {
     expect(schema).toContain('evt_fixedArray: t.jsonb');
     expect(schema).toContain('evt_multiArray: t.jsonb');
   });
+
+  it('should ignore anonymous events and log warning', () => {
+    const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const anonymousAbi = [
+      {
+        type: 'event',
+        name: 'AnonymousEvent',
+        anonymous: true,
+        inputs: [{ name: 'user', type: 'address', indexed: false }],
+      },
+      {
+        type: 'event',
+        name: 'RegularEvent',
+        anonymous: false,
+        inputs: [{ name: 'user', type: 'address', indexed: false }],
+      },
+    ] as const;
+
+    const config = {
+      chains: { mainnet: { id: 1 } },
+      contracts: { TestContract: anonymousAbi },
+      addresses: {
+        mainnet: { TestContract: addrA },
+      },
+      startBlocks: {
+        mainnet: 1000000,
+      },
+    };
+
+    const schema = generateSchema(config);
+
+    // Should warn about anonymous event
+    expect(consoleSpy).toHaveBeenCalledWith(
+      '⚠️  Anonymous event "AnonymousEvent" in contract "TestContract" will be ignored. Anonymous events cannot be efficiently indexed.',
+    );
+
+    // Should only include the regular event, not the anonymous one
+    expect(schema).toContain('export const TestContract = {');
+    expect(schema).toContain("RegularEvent: onchainTable('TestContract_RegularEvent'");
+    expect(schema).not.toContain("AnonymousEvent: onchainTable('TestContract_AnonymousEvent'");
+    expect(schema).toContain('export const TestContract_RegularEvent = TestContract.RegularEvent');
+    expect(schema).not.toContain('export const TestContract_AnonymousEvent');
+
+    consoleSpy.mockRestore();
+  });
 });
 
 describe('generateSchema snapshots', () => {

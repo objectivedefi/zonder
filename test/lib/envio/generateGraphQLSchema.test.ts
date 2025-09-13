@@ -1,5 +1,5 @@
 import { parseAbi } from 'viem';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { generateGraphQLSchema } from '../../../src/lib/envio/generateGraphQLSchema.js';
 import type { ZonderConfig } from '../../../src/lib/zonder/types.js';
@@ -285,5 +285,89 @@ describe('generateGraphQLSchema', () => {
     expect(schema).toContain('@index(fields: ["chain_id", "evt_recipient"])');
     expect(schema).toContain('@index(fields: ["chain_id", "evt_token_in"])');
     expect(schema).toContain('@index(fields: ["chain_id", "evt_token_out"])');
+  });
+
+  it('should throw error for events with missing parameter names', () => {
+    const config: ZonderConfig<any, any> = {
+      chains: {},
+      contracts: {
+        TestContract: [
+          {
+            anonymous: false,
+            inputs: [{ indexed: false, internalType: 'address', name: '', type: 'address' }],
+            name: 'TestEvent',
+            type: 'event',
+          },
+        ] as any,
+      },
+      addresses: {},
+      startBlocks: {},
+    };
+
+    expect(() => generateGraphQLSchema(config)).toThrow(
+      'Event parameter at index 0 in event "TestEvent" of contract "TestContract" is missing a name. All event parameters must have names.',
+    );
+  });
+
+  it('should throw error for events with empty string parameter names', () => {
+    const config: ZonderConfig<any, any> = {
+      chains: {},
+      contracts: {
+        TestContract: [
+          {
+            anonymous: false,
+            inputs: [{ indexed: false, internalType: 'address', name: '   ', type: 'address' }],
+            name: 'TestEvent',
+            type: 'event',
+          },
+        ] as any,
+      },
+      addresses: {},
+      startBlocks: {},
+    };
+
+    expect(() => generateGraphQLSchema(config)).toThrow(
+      'Event parameter at index 0 in event "TestEvent" of contract "TestContract" is missing a name. All event parameters must have names.',
+    );
+  });
+
+  it('should ignore anonymous events and log warning', () => {
+    const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const config: ZonderConfig<any, any> = {
+      chains: {},
+      contracts: {
+        TestContract: [
+          {
+            anonymous: true,
+            inputs: [{ indexed: false, internalType: 'address', name: 'user', type: 'address' }],
+            name: 'AnonymousEvent',
+            type: 'event',
+          },
+          {
+            anonymous: false,
+            inputs: [{ indexed: false, internalType: 'address', name: 'user', type: 'address' }],
+            name: 'RegularEvent',
+            type: 'event',
+          },
+        ] as any,
+      },
+      addresses: {},
+      startBlocks: {},
+    };
+
+    const schema = generateGraphQLSchema(config);
+
+    // Should warn about anonymous event
+    expect(consoleSpy).toHaveBeenCalledWith(
+      '⚠️  Anonymous event "AnonymousEvent" in contract "TestContract" will be ignored. Anonymous events cannot be efficiently indexed.',
+    );
+
+    // Should only include the regular event, not the anonymous one
+    expect(schema).toContain('type TestContract_RegularEvent');
+    expect(schema).toContain('evt_user: String!');
+    expect(schema).not.toContain('type TestContract_AnonymousEvent');
+
+    consoleSpy.mockRestore();
   });
 });

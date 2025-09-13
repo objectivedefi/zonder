@@ -1,6 +1,7 @@
 import type { Abi } from 'viem';
 
 import { safeWriteFileSync } from '../utils/safeWrite.js';
+import { validateEventParameters } from '../utils/validateEventParameters.js';
 import type { ZonderConfig } from '../zonder/types.js';
 import { solidityTypeToPgType } from './solidityTypeToPgType.js';
 
@@ -31,9 +32,17 @@ export function generateSchema<
     const events = abi.filter((e: any) => e.type === 'event');
     if (!events.length) return;
 
+    // Filter out anonymous events and validate remaining events
+    const validEvents = events.filter((event: any) => {
+      const isValidEvent = validateEventParameters(event, contractName);
+      return isValidEvent;
+    });
+
+    if (!validEvents.length) return;
+
     eventTables += `\nexport const ${contractName} = {`;
 
-    events.forEach((event: any) => {
+    validEvents.forEach((event: any) => {
       const tableName = `${contractName}_${event.name}`;
       const eventArgs = event.inputs
         .map(
@@ -59,7 +68,7 @@ ${addressIndexes}
   })),`;
     });
     eventTables += `\n};\n\n`;
-    events.forEach(
+    validEvents.forEach(
       (event: any) =>
         (eventTables += `export const ${contractName}_${event.name} = ${contractName}.${event.name};\n`),
     );

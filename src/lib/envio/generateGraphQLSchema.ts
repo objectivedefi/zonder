@@ -1,6 +1,7 @@
 import type { Abi } from 'viem';
 
 import { safeWriteFileSync } from '../utils/safeWrite.js';
+import { validateEventParameters } from '../utils/validateEventParameters.js';
 import type { ZonderConfig } from '../zonder/types.js';
 import { formatEventName } from './formatEventName.js';
 import { solidityTypeToGraphQLType } from './solidityTypeToGraphQLType.js';
@@ -21,6 +22,12 @@ export function generateGraphQLSchema<
     events.forEach((event) => {
       const typeName = `${contractName}_${event.name}`;
 
+      // Validate event parameters have names and check for anonymous events
+      const isValidEvent = validateEventParameters(event, contractName);
+      if (!isValidEvent) {
+        return; // Skip anonymous events
+      }
+
       // Generate indexes
       const indexes = [`@index(fields: ["chain_id", "block_timestamp"])`];
 
@@ -28,7 +35,7 @@ export function generateGraphQLSchema<
       if (event.inputs && event.inputs.length > 0) {
         event.inputs.forEach((input) => {
           if (input.type === 'address') {
-            const fieldName = `evt_${formatEventName(input.name || 'param')}`;
+            const fieldName = `evt_${formatEventName(input.name!)}`; // We've validated this exists above
             indexes.push(`@index(fields: ["chain_id", "${fieldName}"])`);
           }
         });
@@ -47,7 +54,7 @@ export function generateGraphQLSchema<
       if (event.inputs && event.inputs.length > 0) {
         schema += '\n';
         event.inputs.forEach((input) => {
-          const fieldName = `evt_${formatEventName(input.name || 'param')}`;
+          const fieldName = `evt_${formatEventName(input.name!)}`; // We've validated this exists above
           const graphqlType = solidityTypeToGraphQLType(input.type);
           schema += `  ${fieldName}: ${graphqlType}!\n`;
         });

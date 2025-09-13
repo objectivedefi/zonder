@@ -2,6 +2,7 @@ import fs from 'fs';
 import type { Abi } from 'viem';
 
 import { safeWriteFileSync } from '../utils/safeWrite.js';
+import { validateEventParameters } from '../utils/validateEventParameters.js';
 import type { ZonderConfig } from '../zonder/types.js';
 import { formatEventName } from './formatEventName.js';
 import { formatEventSignature } from './formatEventSignature.js';
@@ -100,11 +101,17 @@ ${body}
     events.forEach((event) => {
       const eventName = event.name;
 
+      // Validate event parameters have names and check for anonymous events
+      const isValidEvent = validateEventParameters(event, contractName);
+      if (!isValidEvent) {
+        return; // Skip anonymous events
+      }
+
       // Build event parameter assignments
       const eventParams =
         event.inputs
           ?.map((input) => {
-            const paramName = input.name || 'param';
+            const paramName = input.name!; // We've validated this exists above
             if (input.type.startsWith('tuple') || input.type.includes('[')) {
               // For complex types (arrays, tuples), stringify them
               return `    evt_${formatEventName(paramName)}: JSON.stringify(event.params.${paramName}, (_, v) => typeof v === 'bigint' ? \`\${v.toString()}n\` : v),`;

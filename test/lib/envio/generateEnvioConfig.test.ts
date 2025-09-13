@@ -1,7 +1,7 @@
 import * as yaml from 'js-yaml';
 import { type Address, parseAbi } from 'viem';
 import { arbitrum, mainnet } from 'viem/chains';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { generateEnvioConfig } from '../../../src/lib/envio/generateEnvioConfig.js';
 import type { ZonderConfig } from '../../../src/lib/zonder/types.js';
@@ -115,7 +115,7 @@ describe('generateEnvioConfig', () => {
       factoryDeployed: {
         UniswapV2Pair: {
           event: parseAbi([
-            'event PairCreated(address indexed token0, address indexed token1, address pair, uint256)',
+            'event PairCreated(address indexed token0, address indexed token1, address pair, uint256 timestamp)',
           ])[0],
           parameter: 'pair',
           deployedBy: 'UniswapV2Factory' as any,
@@ -153,7 +153,7 @@ describe('generateEnvioConfig', () => {
       chains: { mainnet },
       contracts: {
         Factory: parseAbi([
-          'event PairCreated(address indexed token0, address indexed token1, address pair, uint256)',
+          'event PairCreated(address indexed token0, address indexed token1, address pair, uint256 timestamp)',
         ]),
         // Factory-deployed contract with no events defined in ABI
         DeployedContract: parseAbi(['function someFunction() view returns (uint256)']),
@@ -167,7 +167,7 @@ describe('generateEnvioConfig', () => {
       factoryDeployed: {
         DeployedContract: {
           event: parseAbi([
-            'event PairCreated(address indexed token0, address indexed token1, address pair, uint256)',
+            'event PairCreated(address indexed token0, address indexed token1, address pair, uint256 timestamp)',
           ])[0],
           parameter: 'pair',
           deployedBy: 'Factory' as any,
@@ -189,7 +189,7 @@ describe('generateEnvioConfig', () => {
       chains: { mainnet },
       contracts: {
         Factory: parseAbi([
-          'event PairCreated(address indexed token0, address indexed token1, address pair, uint256)',
+          'event PairCreated(address indexed token0, address indexed token1, address pair, uint256 timestamp)',
         ]),
         // Factory-deployed contract WITH events in its ABI
         DeployedWithEvents: parseAbi([
@@ -205,7 +205,7 @@ describe('generateEnvioConfig', () => {
       factoryDeployed: {
         DeployedWithEvents: {
           event: parseAbi([
-            'event PairCreated(address indexed token0, address indexed token1, address pair, uint256)',
+            'event PairCreated(address indexed token0, address indexed token1, address pair, uint256 timestamp)',
           ])[0],
           parameter: 'pair',
           deployedBy: 'Factory' as any,
@@ -494,5 +494,107 @@ describe('generateEnvioConfig', () => {
     expect(optimismContractNames).toContain('TokenFactory');
     expect(optimismContractNames).toContain('Token');
     expect(optimismContractNames).toContain('UniswapPool');
+  });
+
+  it('should throw error for events with missing parameter names', () => {
+    const config: ZonderConfig<any, any> = {
+      chains: { mainnet },
+      contracts: {
+        TestContract: [
+          {
+            anonymous: false,
+            inputs: [{ indexed: false, internalType: 'address', name: '', type: 'address' }],
+            name: 'TestEvent',
+            type: 'event',
+          },
+        ] as any,
+      },
+      addresses: {
+        mainnet: {
+          TestContract: '0x1234567890123456789012345678901234567890',
+        },
+      },
+      startBlocks: {
+        mainnet: { default: 1000000 },
+      },
+    };
+
+    expect(() => generateEnvioConfig(config)).toThrow(
+      'Event parameter at index 0 in event "TestEvent" of contract "TestContract" is missing a name. All event parameters must have names.',
+    );
+  });
+
+  it('should throw error for events with empty string parameter names', () => {
+    const config: ZonderConfig<any, any> = {
+      chains: { mainnet },
+      contracts: {
+        TestContract: [
+          {
+            anonymous: false,
+            inputs: [{ indexed: false, internalType: 'address', name: '   ', type: 'address' }],
+            name: 'TestEvent',
+            type: 'event',
+          },
+        ] as any,
+      },
+      addresses: {
+        mainnet: {
+          TestContract: '0x1234567890123456789012345678901234567890',
+        },
+      },
+      startBlocks: {
+        mainnet: { default: 1000000 },
+      },
+    };
+
+    expect(() => generateEnvioConfig(config)).toThrow(
+      'Event parameter at index 0 in event "TestEvent" of contract "TestContract" is missing a name. All event parameters must have names.',
+    );
+  });
+
+  it('should ignore anonymous events and log warning', () => {
+    const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const config: ZonderConfig<any, any> = {
+      chains: { mainnet },
+      contracts: {
+        TestContract: [
+          {
+            anonymous: true,
+            inputs: [{ indexed: false, internalType: 'address', name: 'user', type: 'address' }],
+            name: 'AnonymousEvent',
+            type: 'event',
+          },
+          {
+            anonymous: false,
+            inputs: [{ indexed: false, internalType: 'address', name: 'user', type: 'address' }],
+            name: 'RegularEvent',
+            type: 'event',
+          },
+        ] as any,
+      },
+      addresses: {
+        mainnet: {
+          TestContract: '0x1234567890123456789012345678901234567890',
+        },
+      },
+      startBlocks: {
+        mainnet: { default: 1000000 },
+      },
+    };
+
+    const yamlContent = generateEnvioConfig(config);
+
+    // Should warn about anonymous event
+    expect(consoleSpy).toHaveBeenCalledWith(
+      '⚠️  Anonymous event "AnonymousEvent" in contract "TestContract" will be ignored. Anonymous events cannot be efficiently indexed.',
+    );
+
+    // Should only include the regular event, not the anonymous one
+    expect(yamlContent).toContain('name: TestContract');
+    expect(yamlContent).toContain('event: RegularEvent(address user)');
+    expect(yamlContent).not.toContain('event: AnonymousEvent');
+
+    consoleSpy.mockRestore();
   });
 });
