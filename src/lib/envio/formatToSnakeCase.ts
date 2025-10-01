@@ -1,7 +1,7 @@
 /**
- * Formats an event name to a snake case string
+ * Formats a string to snake case
  */
-export function formatEventName(eventName: string) {
+export function formatToSnakeCase(eventName: string) {
   if (typeof eventName !== 'string') {
     throw new Error('Event name must be a string');
   }

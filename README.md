@@ -1,13 +1,11 @@
 # Zonder
 
-Multi-chain indexing config generator for Ponder and Envio.
+Multi-chain indexing config generator for Envio.
 
 > [!WARNING]
 > Pre-production API: expect breaking changes
 
 ## Quick Start
-
-Choose one indexing backend: Ponder or Envio.
 
 ### Zonder + Envio
 
@@ -39,80 +37,66 @@ export const zonderConfig = {
 ```
 
 ```bash
-# 5. Generate files
-pnpm zonder generate envio
-# Creates: config.yaml, schema.graphql, src/EventHandlers.ts, .env.example
-
-# 6. Configure DB (copy .env.example to .env.local and fill values)
-cp .env.example .env.local
-
-# 7. Generate envio internals
-pnpm envio codegen
-
-# 8. Run
-pnpm envio start
-```
-
-### Zonder + Ponder
-
-```bash
-# 1. Initialize Ponder (choose Default template)
-pnpm create ponder my-indexer
-cd my-indexer
-
-# 2. Install Zonder
-pnpm add zonder
-```
-
-```typescript
-// 3. Add your ABIs in abis/[ContractName].ts
-// Tip: `pnpm zonder take-abi` extracts abi from local Foundry compilation artifacts
-// File: abis/EVault.ts
-export default [...] as const;
-
-// 4. Create your zonder.config.ts
-import { mainnet } from 'viem/chains';
-import { ZonderConfig } from 'zonder';
-
-import EVault from './abis/EVault';
-
-export const zonderConfig = {
-  chains: { mainnet },
-  contracts: { EVault },
-  addresses: { mainnet: { EVault: '0x...' } },
-};
-```
-
-```bash
-# 5. Auto-discover deployment blocks (recommended)
-pnpm zonder find-start-blocks
+# 5. Configure environment
+cp .env.example .env
+# Set CLICKHOUSE_URL, CLICKHOUSE_PASSWORD, CLICKHOUSE_DATABASE
 
 # 6. Generate files
-pnpm zonder generate ponder
-# Creates: ponder.config.ts, ponder.schema.ts, src/index.ts, .env.example
+pnpm zonder generate
 
-# 7. Configure RPC URLs (copy .env.example to .env.local and add RPC URLs)
-cp .env.example .env.local
+# 7. Create ClickHouse tables
+pnpm zonder migrate
 
-# 8. Start indexing
-pnpm ponder dev
+# 8. Generate envio internals
+pnpm envio codegen
+
+# 9. Run
+pnpm envio start
 ```
 
 ## CLI Commands
 
-### `generate <runtime>`
+### `generate`
 
-Generate indexer files for your chosen runtime:
+Generate Envio indexer files with ClickHouse support:
 
 ```bash
-# For Ponder
-pnpm zonder generate ponder
-# Generates: ponder.config.ts, ponder.schema.ts, src/index.ts, .env.example
-
-# For Envio
-pnpm zonder generate envio
-# Generates: config.yaml, schema.graphql, src/EventHandlers.ts, .env.example
+pnpm zonder generate
+# Generates:
+#   config.yaml           - Network and contract config
+#   schema.graphql        - GraphQL entity definitions
+#   src/EventHandlers.ts  - Event processors (write to ClickHouse)
+#   clickhouse-schema.sql - ClickHouse table DDL
+#   src/clickhouse.ts     - Batched ClickHouse client
+#   .env.example          - Environment template
 ```
+
+**ClickHouse Integration:**
+
+- Enabled by default (disable with `clickhouse: { enabled: false }` in config)
+- Events written directly to ClickHouse (bypasses PostgreSQL CDC)
+- JSON string serialization for proper BigInt/Boolean handling
+- Batching enabled (configurable via environment variables)
+- Snake_case table names (e.g., `e_vault_deposit`)
+
+### `migrate`
+
+Create ClickHouse database and tables:
+
+```bash
+pnpm zonder migrate
+# Creates database + tables from clickhouse-schema.sql
+
+# Force migration (drops outdated tables, keeps matching ones)
+pnpm zonder migrate --force
+```
+
+**How it works:**
+
+1. Reads `CLICKHOUSE_DATABASE` from `.env`
+2. Creates database if it doesn't exist
+3. Creates all tables in parallel
+4. With `--force`: drops tables not in schema, keeps existing ones
 
 ### `take-abi`
 
@@ -144,12 +128,15 @@ Features:
 
 ## Features
 
-- Generate files for Ponder or Envio from unified config
-- Raw event storage with optimized indexes
-- Multi-chain configuration support
-- Factory contract support for dynamically deployed contracts
-- TypeScript configuration with type safety
-- Auto-generated environment templates
+- **ClickHouse Direct Write**: Events written to ClickHouse for analytics (enabled by default)
+  - 70% cost reduction vs PostgreSQL for high-volume events
+  - No CDC pipeline complexity
+  - Batched writes with JSON string serialization
+  - Automatic snake_case table names
+- **Type-safe Config**: Define contracts and chains in TypeScript
+- **Multi-chain Support**: Index events across multiple networks
+- **Factory Patterns**: Automatic discovery and indexing of factory-deployed contracts
+- **Smart CLI**: Auto-generate configs, discover deployment blocks, extract ABIs
 
 ## Advanced Configuration
 
@@ -182,44 +169,38 @@ contracts: {
 }
 ```
 
-## Runtime Comparison
+## Generated Files
 
-| Feature      | Ponder             | Envio                 |
-| ------------ | ------------------ | --------------------- |
-| **Database** | SQLite or Postgres | Postgres              |
-| **Sync**     | Standard RPC       | HyperSync + RPC       |
-| **Language** | TypeScript         | TypeScript + ReScript |
+| File                    | Purpose                                      |
+| ----------------------- | -------------------------------------------- |
+| `config.yaml`           | Network and contract configuration           |
+| `schema.graphql`        | GraphQL entity definitions (for Envio)       |
+| `src/EventHandlers.ts`  | Event processors (write to ClickHouse)       |
+| `src/clickhouse.ts`     | ClickHouse client with batching + Effect API |
+| `clickhouse-schema.sql` | ClickHouse DDL (database + tables)           |
+| `.env.example`          | Environment template (credentials + tuning)  |
 
-### Generated Files
+## Environment Variables
 
-**Ponder**:
+```bash
+# ClickHouse connection
+CLICKHOUSE_URL=https://your-host:8443
+CLICKHOUSE_USERNAME=default
+CLICKHOUSE_PASSWORD=your-password
+CLICKHOUSE_DATABASE=your_db
 
-- `ponder.config.ts`: Runtime configuration
-- `ponder.schema.ts`: Drizzle ORM tables with indexes
-- `src/index.ts`: Event handlers for raw storage
-- `.env.example`: RPC URL templates
-
-**Envio**:
-
-- `config.yaml`: Network and contract configuration
-- `schema.graphql`: GraphQL entity definitions
-- `src/EventHandlers.ts`: Event processors
-- `.env.example`: Database and performance settings
+# Performance tuning
+MAX_BATCH_SIZE=5000                    # Flush after N events
+CLICKHOUSE_FLUSH_INTERVAL_MS=5000      # Flush every N ms
+CLICKHOUSE_BATCH_ENABLED=true          # Enable batching
+```
 
 ## Use Cases
-
-**Suitable for**:
 
 - Event data analytics and monitoring
 - Raw blockchain data extraction
 - Quick prototyping of indexers
 - Multi-chain data collection
-
-**Not suitable for**:
-
-- Complex data transformations
-- Custom business logic
-- Application-specific data models
 
 ## License
 
@@ -227,7 +208,5 @@ MIT © Objective Labs
 
 ## Related Projects
 
-- [Ponder](https://ponder.sh) - TypeScript indexing framework
 - [Envio](https://envio.dev) - High-performance indexing with HyperSync
 - [Viem](https://viem.sh) - TypeScript Ethereum client library
-- [Drizzle ORM](https://orm.drizzle.team) - Database ORM used by Ponder

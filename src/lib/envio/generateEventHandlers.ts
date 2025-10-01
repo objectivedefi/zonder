@@ -4,8 +4,8 @@ import type { Abi } from 'viem';
 import { safeWriteFileSync } from '../utils/safeWrite.js';
 import { validateEventParameters } from '../utils/validateEventParameters.js';
 import type { ZonderConfig } from '../zonder/types.js';
-import { formatEventName } from './formatEventName.js';
 import { formatEventSignature } from './formatEventSignature.js';
+import { formatToSnakeCase } from './formatToSnakeCase.js';
 
 /**
  * Generates event handlers for Envio
@@ -24,7 +24,17 @@ export function generateEventHandlers<
   }
 
   // Build imports
-  const imports = `import { ${contractsWithEvents.join(', ')} } from "generated";\n`;
+  const imports = `import { ${contractsWithEvents.join(', ')} } from "generated";
+import { writeToClickHouse, serializeForClickHouse } from "./clickhouse";
+
+function arrayToObject(arr: readonly any[], keys: string[]): any {
+  const result: any = {};
+  for (let i = 0; i < keys.length && i < arr.length; i++) {
+    result[keys[i]] = arr[i];
+  }
+  return result;
+}
+`;
 
   /**
    * Generates factory contract registration handlers
@@ -107,23 +117,30 @@ ${body}
         return; // Skip anonymous events
       }
 
-      // Build event parameter assignments
       const eventParams =
         event.inputs
           ?.map((input) => {
-            const paramName = input.name!; // We've validated this exists above
-            if (input.type.startsWith('tuple') || input.type.includes('[')) {
-              // For complex types (arrays, tuples), stringify them
-              return `    evt_${formatEventName(paramName)}: JSON.stringify(event.params.${paramName}, (_, v) => typeof v === 'bigint' ? \`\${v.toString()}n\` : v),`;
-            } else {
-              return `    evt_${formatEventName(paramName)}: event.params.${paramName},`;
+            const paramName = input.name!;
+            const snakeName = formatToSnakeCase(paramName);
+
+            // Check if this is a tuple type that needs arrayToObject conversion
+            if (input.type === 'tuple' && 'components' in input) {
+              const componentNames = (input as any).components
+                .map((c: any) => c.name)
+                .filter(Boolean);
+              const namesArray = componentNames.map((n: string) => `'${n}'`).join(', ');
+              return `    evt_${snakeName}: arrayToObject(event.params.${paramName}, [${namesArray}]),`;
             }
+
+            return `    evt_${snakeName}: event.params.${paramName},`;
           })
           .join('\n') || '';
 
+      const tableName = `${formatToSnakeCase(contractName)}_${formatToSnakeCase(eventName)}`;
+
       registrations.push(`
 ${contractName}.${eventName}.handler(async ({ event, context }) => {
-  context.${contractName}_${eventName}.set({
+  const eventData = {
     id: \`\${event.chainId}_\${event.block.number}_\${event.logIndex}\`,
     chain_id: event.chainId,
     tx_hash: event.transaction.hash,
@@ -131,7 +148,14 @@ ${contractName}.${eventName}.handler(async ({ event, context }) => {
     block_timestamp: BigInt(event.block.timestamp),
     log_index: event.logIndex,
     log_address: event.srcAddress,${eventParams ? '\n' + eventParams : ''}
-  });
+  };
+
+  if (!context.isPreload) {
+    await context.effect(writeToClickHouse, {
+      table: "${tableName}",
+      data: serializeForClickHouse(eventData),
+    });
+  }
 });`);
     });
   });

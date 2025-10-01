@@ -26,4 +26,10 @@ export type ZonderConfig<
       default?: number;
     };
   };
+  clickhouse?: {
+    enabled?: boolean; // default: true
+    batchSize?: number; // default: 5000
+    flushIntervalMs?: number; // default: 5000
+    databaseName?: string; // default: 'default'
+  };
 };

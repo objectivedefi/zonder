@@ -11,6 +11,7 @@ export interface EnvioConfig {
   name: string;
   description?: string;
   ecosystem?: 'evm';
+  preload_handlers?: boolean;
   field_selection?: {
     transaction_fields?: string[];
     block_fields?: string[];
@@ -46,6 +47,7 @@ export function generateEnvioConfig<
   const envioConfig: EnvioConfig = {
     name: projectName,
     description: 'Auto-generated Envio configuration from Zonder',
+    preload_handlers: true, // Required for Effect API (ClickHouse writes)
     field_selection: {
       transaction_fields: ['hash'],
     },

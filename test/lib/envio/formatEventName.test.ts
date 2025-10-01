@@ -1,80 +1,80 @@
 import { describe, expect, it } from 'vitest';
 
-import { formatEventName } from '../../../src/lib/envio/formatEventName.js';
+import { formatToSnakeCase } from '../../../src/lib/envio/formatToSnakeCase.js';
 
-describe('formatEventName', () => {
+describe('formatToSnakeCase', () => {
   it('should convert camelCase to snake_case', () => {
-    expect(formatEventName('tokenTransfer')).toBe('token_transfer');
-    expect(formatEventName('userRegistered')).toBe('user_registered');
-    expect(formatEventName('priceUpdated')).toBe('price_updated');
+    expect(formatToSnakeCase('tokenTransfer')).toBe('token_transfer');
+    expect(formatToSnakeCase('userRegistered')).toBe('user_registered');
+    expect(formatToSnakeCase('priceUpdated')).toBe('price_updated');
   });
 
   it('should convert PascalCase to snake_case', () => {
-    expect(formatEventName('TokenTransfer')).toBe('token_transfer');
-    expect(formatEventName('UserRegistered')).toBe('user_registered');
-    expect(formatEventName('PriceUpdated')).toBe('price_updated');
+    expect(formatToSnakeCase('TokenTransfer')).toBe('token_transfer');
+    expect(formatToSnakeCase('UserRegistered')).toBe('user_registered');
+    expect(formatToSnakeCase('PriceUpdated')).toBe('price_updated');
   });
 
   it('should handle all caps', () => {
-    expect(formatEventName('TRANSFER')).toBe('transfer');
-    expect(formatEventName('TOKEN_TRANSFER')).toBe('token_transfer');
-    expect(formatEventName('ERC20_TRANSFER')).toBe('erc20_transfer');
+    expect(formatToSnakeCase('TRANSFER')).toBe('transfer');
+    expect(formatToSnakeCase('TOKEN_TRANSFER')).toBe('token_transfer');
+    expect(formatToSnakeCase('ERC20_TRANSFER')).toBe('erc20_transfer');
   });
 
   it('should handle mixed case patterns', () => {
-    expect(formatEventName('ERC20Transfer')).toBe('erc20_transfer');
-    expect(formatEventName('NFTMinted')).toBe('nft_minted');
-    expect(formatEventName('DAOProposalCreated')).toBe('dao_proposal_created');
-    expect(formatEventName('TVLUpdated')).toBe('tvl_updated');
+    expect(formatToSnakeCase('ERC20Transfer')).toBe('erc20_transfer');
+    expect(formatToSnakeCase('NFTMinted')).toBe('nft_minted');
+    expect(formatToSnakeCase('DAOProposalCreated')).toBe('dao_proposal_created');
+    expect(formatToSnakeCase('TVLUpdated')).toBe('tvl_updated');
   });
 
   it('should handle already snake_case strings', () => {
-    expect(formatEventName('already_snake_case')).toBe('already_snake_case');
-    expect(formatEventName('token_transfer')).toBe('token_transfer');
+    expect(formatToSnakeCase('already_snake_case')).toBe('already_snake_case');
+    expect(formatToSnakeCase('token_transfer')).toBe('token_transfer');
   });
 
   it('should handle single word strings', () => {
-    expect(formatEventName('Transfer')).toBe('transfer');
-    expect(formatEventName('transfer')).toBe('transfer');
-    expect(formatEventName('TRANSFER')).toBe('transfer');
+    expect(formatToSnakeCase('Transfer')).toBe('transfer');
+    expect(formatToSnakeCase('transfer')).toBe('transfer');
+    expect(formatToSnakeCase('TRANSFER')).toBe('transfer');
   });
 
   it('should handle strings with numbers', () => {
-    expect(formatEventName('ERC20Transfer')).toBe('erc20_transfer');
-    expect(formatEventName('ERC721Transfer')).toBe('erc721_transfer');
-    expect(formatEventName('transfer2User')).toBe('transfer2_user');
-    expect(formatEventName('v2Migration')).toBe('v2_migration');
+    expect(formatToSnakeCase('ERC20Transfer')).toBe('erc20_transfer');
+    expect(formatToSnakeCase('ERC721Transfer')).toBe('erc721_transfer');
+    expect(formatToSnakeCase('transfer2User')).toBe('transfer2_user');
+    expect(formatToSnakeCase('v2Migration')).toBe('v2_migration');
   });
 
   it('should handle consecutive capitals', () => {
-    expect(formatEventName('HTTPRequest')).toBe('http_request');
-    expect(formatEventName('XMLParser')).toBe('xml_parser');
-    expect(formatEventName('JSONData')).toBe('json_data');
-    expect(formatEventName('APIResponse')).toBe('api_response');
+    expect(formatToSnakeCase('HTTPRequest')).toBe('http_request');
+    expect(formatToSnakeCase('XMLParser')).toBe('xml_parser');
+    expect(formatToSnakeCase('JSONData')).toBe('json_data');
+    expect(formatToSnakeCase('APIResponse')).toBe('api_response');
   });
 
   it('should handle empty string', () => {
-    expect(formatEventName('')).toBe('');
+    expect(formatToSnakeCase('')).toBe('');
   });
 
   it('should throw error for non-string input', () => {
-    expect(() => formatEventName(null as any)).toThrow('Event name must be a string');
-    expect(() => formatEventName(undefined as any)).toThrow('Event name must be a string');
-    expect(() => formatEventName(123 as any)).toThrow('Event name must be a string');
-    expect(() => formatEventName({} as any)).toThrow('Event name must be a string');
+    expect(() => formatToSnakeCase(null as any)).toThrow('Event name must be a string');
+    expect(() => formatToSnakeCase(undefined as any)).toThrow('Event name must be a string');
+    expect(() => formatToSnakeCase(123 as any)).toThrow('Event name must be a string');
+    expect(() => formatToSnakeCase({} as any)).toThrow('Event name must be a string');
   });
 
   it('should handle complex real-world event names', () => {
-    expect(formatEventName('OwnershipTransferred')).toBe('ownership_transferred');
-    expect(formatEventName('ApprovalForAll')).toBe('approval_for_all');
-    expect(formatEventName('UniswapV2PairCreated')).toBe('uniswap_v2_pair_created');
-    expect(formatEventName('LiquidityAddedToPool')).toBe('liquidity_added_to_pool');
+    expect(formatToSnakeCase('OwnershipTransferred')).toBe('ownership_transferred');
+    expect(formatToSnakeCase('ApprovalForAll')).toBe('approval_for_all');
+    expect(formatToSnakeCase('UniswapV2PairCreated')).toBe('uniswap_v2_pair_created');
+    expect(formatToSnakeCase('LiquidityAddedToPool')).toBe('liquidity_added_to_pool');
   });
 
   it('should handle edge cases with underscores', () => {
-    expect(formatEventName('_transfer')).toBe('_transfer');
-    expect(formatEventName('transfer_')).toBe('transfer_');
-    expect(formatEventName('_Transfer')).toBe('_transfer');
-    expect(formatEventName('Transfer_')).toBe('transfer_');
+    expect(formatToSnakeCase('_transfer')).toBe('_transfer');
+    expect(formatToSnakeCase('transfer_')).toBe('transfer_');
+    expect(formatToSnakeCase('_Transfer')).toBe('_transfer');
+    expect(formatToSnakeCase('Transfer_')).toBe('transfer_');
   });
 });

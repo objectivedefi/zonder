@@ -27,9 +27,15 @@ describe('generateEventHandlers', () => {
     expect(handlers).toContain('EVault.Deposit.handler(async ({ event, context }) => {');
     expect(handlers).toContain('EVault.Borrow.handler(async ({ event, context }) => {');
 
-    // Check context keys
-    expect(handlers).toContain('context.EVault_Deposit.set({');
-    expect(handlers).toContain('context.EVault_Borrow.set({');
+    // Check ClickHouse writes
+    expect(handlers).toContain(
+      'import { writeToClickHouse, serializeForClickHouse } from "./clickhouse.js"',
+    );
+    expect(handlers).toContain('await context.effect(writeToClickHouse');
+    expect(handlers).toContain('table: "evault_deposit"');
+    expect(handlers).toContain('data: serializeForClickHouse(eventData)');
+    expect(handlers).toContain('if (!context.isPreload)');
+    expect(handlers).toContain('// Write directly to ClickHouse (skip CDC)');
 
     // Check field mappings
     expect(handlers).toContain('evt_sender: event.params.sender');
@@ -62,10 +68,9 @@ describe('generateEventHandlers', () => {
     expect(handlers).toContain('TokenB.Approval.handler(async ({ event, context }) => {');
     expect(handlers).toContain('Oracle.PriceUpdated.handler(async ({ event, context }) => {');
 
-    // Check context keys
-    expect(handlers).toContain('context.TokenA_Transfer.set({');
-    expect(handlers).toContain('context.TokenB_Approval.set({');
-    expect(handlers).toContain('context.Oracle_PriceUpdated.set({');
+    // Check ClickHouse writes (no more PostgreSQL writes)
+    expect(handlers).toContain('data: serializeForClickHouse(eventData)');
+    expect(handlers).toContain('if (!context.isPreload)');
   });
 
   it('should handle contracts with no events', () => {
@@ -98,7 +103,7 @@ describe('generateEventHandlers', () => {
 
     // Check direct field assignments in handler
     expect(handlers).toContain('Test.TestEvent.handler(async ({ event, context }) => {');
-    expect(handlers).toContain('context.Test_TestEvent.set({');
+    expect(handlers).toContain('const eventData = {');
     expect(handlers).toContain('id: `${event.chainId}_${event.block.number}_${event.logIndex}`');
     expect(handlers).toContain('chain_id: event.chainId');
     expect(handlers).toContain('tx_hash: event.transaction.hash');
@@ -107,6 +112,7 @@ describe('generateEventHandlers', () => {
     expect(handlers).toContain('log_index: event.logIndex');
     expect(handlers).toContain('log_address: event.srcAddress');
     expect(handlers).toContain('evt_value: event.params.value');
+    expect(handlers).toContain('data: serializeForClickHouse(eventData)');
   });
 
   it('should generate factory contract registrations', () => {
@@ -291,8 +297,8 @@ describe('generateEventHandlers', () => {
     expect(handlers).toContain('import { TestContract } from "generated"');
     expect(handlers).toContain('TestContract.RegularEvent.handler');
     expect(handlers).not.toContain('TestContract.AnonymousEvent.handler');
-    expect(handlers).toContain('context.TestContract_RegularEvent.set');
-    expect(handlers).not.toContain('context.TestContract_AnonymousEvent.set');
+    expect(handlers).toContain('table: "testcontract_regularevent"');
+    expect(handlers).not.toContain('testcontract_anonymousevent');
 
     consoleSpy.mockRestore();
   });

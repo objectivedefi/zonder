@@ -1,22 +1,19 @@
 #!/usr/bin/env node
 import { Command } from 'commander';
+import { config as dotenvConfig } from 'dotenv';
 import { readFileSync } from 'fs';
 import fs from 'fs';
 import { createJiti } from 'jiti';
 import { dirname, join, resolve } from 'path';
 import { fileURLToPath } from 'url';
 
+import { generateAndWriteClickHouseClient } from '../lib/envio/generateClickHouseClient.js';
+import { generateAndWriteClickHouseSchema } from '../lib/envio/generateClickHouseSchema.js';
 import { generateAndWriteEnvExample } from '../lib/envio/generateEnvExample.js';
 // Direct imports for generators
 import { generateAndWriteEnvioConfig } from '../lib/envio/generateEnvioConfig.js';
 import { generateAndWriteEventHandlers } from '../lib/envio/generateEventHandlers.js';
 import { generateAndWriteGraphQLSchema } from '../lib/envio/generateGraphQLSchema.js';
-import {
-  generateAndWriteIndex,
-  generateAndWritePonderConfig,
-  generateAndWritePonderEnvExample,
-  generateAndWriteSchema,
-} from '../lib/ponder/index.js';
 import { findAllDeploymentBlocks } from '../lib/scripts/findStartBlocks.js';
 import { takeAbi } from '../lib/scripts/takeAbi.js';
 
@@ -29,11 +26,11 @@ const program = new Command();
 program.name(pkg.name).description(pkg.description).version(pkg.version);
 
 program
-  .command('generate <runtime>')
-  .description('Generate indexer files for specified runtime (ponder or envio)')
+  .command('generate')
+  .description('Generate Envio indexer files')
   .option('-c, --config <path>', 'Path to config file', './zonder.config.ts')
   .option('--overwrite', 'Overwrite existing files without warning')
-  .action(async (runtime, options) => {
+  .action(async (options) => {
     try {
       const configPath = resolve(options.config);
 
@@ -53,7 +50,7 @@ program
         console.error('🔍 Full error:', error);
 
         // Provide helpful error messages for common issues
-        if (errorStr.includes('PONDER_RPC_URL')) {
+        if (errorStr.includes('RPC_URL')) {
           console.log(
             '💡 Missing RPC URL environment variables. This is expected for Envio generation.',
           );
@@ -68,49 +65,49 @@ program
         zonderConfig = { contracts: {}, chains: {} };
       }
 
-      if (runtime === 'ponder') {
-        console.log('🔨 Generating Ponder files...');
-        const configPath = resolve('./ponder.config.ts');
-        const schemaPath = resolve('./ponder.schema.ts');
-        const indexPath = resolve('./src/index.ts');
-        const envExamplePath = resolve('./.env.example');
+      console.log('🔨 Generating Envio files...');
+      const configYamlPath = resolve('./config.yaml');
+      const handlersPath = resolve('./src/EventHandlers.ts');
+      const clickhouseClientPath = resolve('./src/clickhouse.ts');
+      const envExamplePath = resolve('./.env.example');
+      const clickhouseSchemaPath = resolve('./clickhouse-schema.sql');
 
-        const srcDir = dirname(indexPath);
-        if (!fs.existsSync(srcDir)) {
-          fs.mkdirSync(srcDir, { recursive: true });
-        }
+      const srcDir = dirname(handlersPath);
+      if (!fs.existsSync(srcDir)) {
+        fs.mkdirSync(srcDir, { recursive: true });
+      }
 
-        generateAndWritePonderConfig(configPath, options.overwrite);
-        generateAndWriteSchema(zonderConfig, schemaPath, options.overwrite);
-        generateAndWriteIndex(indexPath, options.overwrite);
-        generateAndWritePonderEnvExample(zonderConfig, envExamplePath, options.overwrite);
+      // Generate core Envio files
+      generateAndWriteEnvioConfig(zonderConfig, configYamlPath, 'envio-indexer', options.overwrite);
+      generateAndWriteGraphQLSchema(zonderConfig, options.overwrite);
+      generateAndWriteEventHandlers(zonderConfig, handlersPath, options.overwrite);
+      generateAndWriteEnvExample(envExamplePath, options.overwrite);
 
-        console.log('✅ Ponder files generated!');
-      } else if (runtime === 'envio') {
-        console.log('🔨 Generating Envio files...');
-        const configYamlPath = resolve('./config.yaml');
-        const handlersPath = resolve('./src/EventHandlers.ts');
-        const envExamplePath = resolve('./.env.example');
+      console.log('✅ Envio files generated!');
 
-        const srcDir = dirname(handlersPath);
-        if (!fs.existsSync(srcDir)) {
-          fs.mkdirSync(srcDir, { recursive: true });
-        }
+      // Generate ClickHouse files (if enabled)
+      const clickhouseEnabled = zonderConfig.clickhouse?.enabled !== false;
+      if (clickhouseEnabled) {
+        console.log('\n🔨 Generating ClickHouse files...');
 
-        generateAndWriteEnvioConfig(
+        // Load .env to get database name
+        dotenvConfig({ path: '.env' });
+        const databaseName =
+          process.env.CLICKHOUSE_DATABASE || zonderConfig.clickhouse?.databaseName || 'default';
+
+        generateAndWriteClickHouseSchema(
           zonderConfig,
-          configYamlPath,
-          'envio-indexer',
+          clickhouseSchemaPath,
+          databaseName,
           options.overwrite,
         );
-        generateAndWriteGraphQLSchema(zonderConfig, options.overwrite);
-        generateAndWriteEventHandlers(zonderConfig, handlersPath, options.overwrite);
-        generateAndWriteEnvExample(envExamplePath, options.overwrite);
+        generateAndWriteClickHouseClient(clickhouseClientPath, options.overwrite);
 
-        console.log('✅ Envio files generated!');
-      } else {
-        console.error(`❌ Invalid runtime: ${runtime}. Use 'ponder' or 'envio'.`);
-        process.exit(1);
+        console.log('✅ ClickHouse files generated!');
+        console.log('');
+        console.log('📝 Next steps for ClickHouse:');
+        console.log('   1. Fill in ClickHouse credentials in .env');
+        console.log('   2. Run: pnpm zonder migrate');
       }
     } catch (error) {
       console.error('❌ Error:', error);
@@ -136,6 +133,224 @@ program
       console.log('✅ ABIs extracted successfully!');
     } catch (error) {
       console.error('❌ Error extracting ABIs:', error);
+      process.exit(1);
+    }
+  });
+
+program
+  .command('migrate')
+  .description('Create ClickHouse tables from schema')
+  .option('--schema <path>', 'Path to schema file', './clickhouse-schema.sql')
+  .option('--force', 'Force migration even if tables already exist')
+  .action(async (options) => {
+    try {
+      console.log('🔨 Creating ClickHouse tables...');
+
+      // Load environment variables from .env files
+      dotenvConfig({ path: '.env' });
+
+      // Dynamic import for optional peer dependency
+      let createClient: any;
+      try {
+        const clickhouse = await import('@clickhouse/client' as any);
+        createClient = clickhouse.createClient;
+      } catch (error) {
+        console.error('❌ @clickhouse/client is not installed');
+        console.log('💡 Install it with: pnpm add @clickhouse/client');
+        process.exit(1);
+      }
+
+      const schemaPath = resolve(options.schema);
+
+      // Load environment variables
+      const CLICKHOUSE_URL = process.env.CLICKHOUSE_URL;
+      const CLICKHOUSE_USERNAME = process.env.CLICKHOUSE_USERNAME || 'default';
+      const CLICKHOUSE_PASSWORD = process.env.CLICKHOUSE_PASSWORD;
+      const CLICKHOUSE_DATABASE = process.env.CLICKHOUSE_DATABASE || 'default';
+
+      // Validate environment
+      if (!CLICKHOUSE_URL) {
+        console.error('❌ CLICKHOUSE_URL environment variable is required');
+        console.log('💡 Set this in your .env file');
+        process.exit(1);
+      }
+
+      if (!CLICKHOUSE_PASSWORD) {
+        console.error('❌ CLICKHOUSE_PASSWORD environment variable is required');
+        console.log('💡 Set this in your .env file');
+        process.exit(1);
+      }
+
+      // Create client without specifying database (will create it first)
+      const client = createClient({
+        url: CLICKHOUSE_URL,
+        username: CLICKHOUSE_USERNAME,
+        password: CLICKHOUSE_PASSWORD,
+      });
+
+      try {
+        await client.ping();
+        console.log('✅ Connected to ClickHouse successfully');
+      } catch (error) {
+        console.error('❌ Failed to connect to ClickHouse:', error);
+        console.log('');
+        console.log('💡 Troubleshooting:');
+        console.log('  - Check CLICKHOUSE_URL is correct (include port, e.g., https://host:8443)');
+        console.log('  - Verify CLICKHOUSE_PASSWORD is correct');
+        console.log('  - Ensure network connectivity to ClickHouse instance');
+        process.exit(1);
+      }
+
+      // Read schema file
+      let sql: string;
+      try {
+        sql = fs.readFileSync(schemaPath, 'utf-8');
+      } catch (error) {
+        console.error(`❌ Failed to read schema file: ${schemaPath}`);
+        console.log('💡 Run "pnpm zonder generate" first to create the schema');
+        process.exit(1);
+      }
+
+      // Split SQL into individual statements
+      const statements = sql
+        .split(';')
+        .map((s) => s.trim())
+        .filter((s) => s.length > 0 && !s.startsWith('--'));
+
+      // Separate database creation from table creation
+      const databaseStatements = statements.filter((s) => s.match(/CREATE DATABASE/i));
+      const tableStatements = statements.filter((s) => s.match(/CREATE TABLE/i));
+
+      // Execute database creation first
+      if (databaseStatements.length > 0) {
+        console.log('\n📊 Creating database...\n');
+        for (const statement of databaseStatements) {
+          try {
+            await client.command({ query: statement });
+            console.log('✅ Database created');
+          } catch (error: any) {
+            if (!error.message?.includes('already exists')) {
+              console.error('❌ Failed to create database:', error.message);
+              await client.close();
+              process.exit(1);
+            }
+            console.log('✅ Database already exists');
+          }
+        }
+      }
+
+      // Extract table names from schema
+      const schemaTableNames = new Set<string>();
+      for (const statement of tableStatements) {
+        const tableMatch = statement.match(/CREATE TABLE IF NOT EXISTS (?:[\w]+\.)?([\w]+)/i);
+        if (tableMatch) {
+          schemaTableNames.add(tableMatch[1]);
+        }
+      }
+
+      // Check for existing tables
+      try {
+        const result = await client.query({
+          query: `SELECT name FROM system.tables WHERE database = '${CLICKHOUSE_DATABASE}' AND name != 'schema_migrations'`,
+          format: 'JSONEachRow',
+        });
+        const existingTables = (await result.json()) as Array<{ name: string }>;
+
+        if (existingTables.length > 0) {
+          if (!options.force) {
+            console.error('❌ Database already contains tables:');
+            existingTables.forEach((table: any) => {
+              console.error(`   - ${table.name}`);
+            });
+            console.log('');
+            console.log('💡 Options:');
+            console.log('   - Use --force flag to drop old tables: pnpm zonder migrate --force');
+            console.log('   - Drop existing tables manually before running migrate');
+            await client.close();
+            process.exit(1);
+          } else {
+            // Drop tables that are NOT in the new schema
+            const tablesToDrop = existingTables.filter(
+              (table: any) => !schemaTableNames.has(table.name),
+            );
+
+            if (tablesToDrop.length > 0) {
+              console.log('🗑️  Dropping old tables not in schema...\n');
+              const dropResults = await Promise.all(
+                tablesToDrop.map(async (table: any) => {
+                  try {
+                    await client.command({
+                      query: `DROP TABLE IF EXISTS ${CLICKHOUSE_DATABASE}.${table.name}`,
+                    });
+                    return { success: true, name: table.name };
+                  } catch (error: any) {
+                    return { success: false, name: table.name, error: error.message };
+                  }
+                }),
+              );
+
+              dropResults.forEach((result) => {
+                if (result.success) {
+                  console.log(`   ✅ Dropped: ${result.name}`);
+                } else {
+                  console.error(`   ❌ Failed to drop ${result.name}:`, result.error);
+                }
+              });
+              console.log('');
+            }
+
+            const tablesToKeep = existingTables.filter((table: any) =>
+              schemaTableNames.has(table.name),
+            );
+            if (tablesToKeep.length > 0) {
+              console.log('✅ Keeping existing tables that are in schema:');
+              tablesToKeep.forEach((table: any) => {
+                console.log(`   - ${table.name}`);
+              });
+              console.log('');
+            }
+          }
+        }
+      } catch (error: any) {
+        console.error('⚠️  Warning: Could not check for existing tables:', error.message);
+        console.log('   Proceeding with migration...\n');
+      }
+
+      console.log(
+        `\n📊 Executing ${tableStatements.length} table creation statements in parallel...\n`,
+      );
+
+      // Execute all table statements in parallel for speed
+      const results = await Promise.all(
+        tableStatements.map(async (statement, i) => {
+          try {
+            await client.command({ query: statement });
+            return { success: true, index: i };
+          } catch (error: any) {
+            return { success: false, index: i, error: error.message || error };
+          }
+        }),
+      );
+
+      await client.close();
+
+      // Check results
+      const failed = results.filter((r) => !r.success);
+
+      if (failed.length > 0) {
+        console.error(`❌ Migration failed! ${failed.length} statement(s) failed:\n`);
+        failed.forEach((result) => {
+          console.error(`   Statement ${result.index + 1}: ${result.error}`);
+        });
+        process.exit(1);
+      }
+
+      console.log('✅ Migration complete! All tables created successfully.\n');
+      console.log('📝 Next steps:');
+      console.log('   1. Run: pnpm envio codegen');
+      console.log('   2. Run: pnpm dev');
+    } catch (error) {
+      console.error('❌ Error:', error);
       process.exit(1);
     }
   });

@@ -18,7 +18,7 @@ interface DeploymentResults {
 
 function createClientForChain(chain: ViemChain): PublicClient {
   const chainId = chain.id;
-  const envVarName = `PONDER_RPC_URL_${chainId}`;
+  const envVarName = `RPC_URL_${chainId}`;
   const rpcUrl = process.env[envVarName];
 
   if (!rpcUrl) {
