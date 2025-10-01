@@ -29,13 +29,12 @@ describe('generateEventHandlers', () => {
 
     // Check ClickHouse writes
     expect(handlers).toContain(
-      'import { writeToClickHouse, serializeForClickHouse } from "./clickhouse.js"',
+      'import { writeToClickHouse, serializeForClickHouse } from "./clickhouse"',
     );
     expect(handlers).toContain('await context.effect(writeToClickHouse');
-    expect(handlers).toContain('table: "evault_deposit"');
+    expect(handlers).toContain('table: "e_vault_deposit"'); // snake_case
     expect(handlers).toContain('data: serializeForClickHouse(eventData)');
     expect(handlers).toContain('if (!context.isPreload)');
-    expect(handlers).toContain('// Write directly to ClickHouse (skip CDC)');
 
     // Check field mappings
     expect(handlers).toContain('evt_sender: event.params.sender');
@@ -297,8 +296,8 @@ describe('generateEventHandlers', () => {
     expect(handlers).toContain('import { TestContract } from "generated"');
     expect(handlers).toContain('TestContract.RegularEvent.handler');
     expect(handlers).not.toContain('TestContract.AnonymousEvent.handler');
-    expect(handlers).toContain('table: "testcontract_regularevent"');
-    expect(handlers).not.toContain('testcontract_anonymousevent');
+    expect(handlers).toContain('table: "test_contract_regular_event"'); // snake_case
+    expect(handlers).not.toContain('test_contract_anonymous_event');
 
     consoleSpy.mockRestore();
   });
