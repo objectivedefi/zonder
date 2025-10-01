@@ -14,7 +14,6 @@ const CLICKHOUSE_PASSWORD = process.env.CLICKHOUSE_PASSWORD;
 const CLICKHOUSE_DATABASE = process.env.CLICKHOUSE_DATABASE || 'default';
 
 const ENVIO_MAX_BATCH_SIZE = parseInt(process.env.MAX_BATCH_SIZE || '5000', 10);
-const CLICKHOUSE_BATCH_SIZE = Math.floor(ENVIO_MAX_BATCH_SIZE / 5);
 
 let clickHouseClient: ReturnType<typeof createClient> | null = null;
 
@@ -128,7 +127,7 @@ export const writeToClickHouse = experimental_createEffect(
     currentBatch[input.table].push(parsed);
     batchEventCount++;
 
-    if (batchEventCount >= CLICKHOUSE_BATCH_SIZE) {
+    if (batchEventCount >= ENVIO_MAX_BATCH_SIZE) {
       await flushBatch();
     }
 

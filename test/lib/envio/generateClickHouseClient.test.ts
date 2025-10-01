@@ -23,8 +23,6 @@ describe('generateClickHouseClient', () => {
     const client = generateClickHouseClient();
 
     expect(client).toContain('const ENVIO_MAX_BATCH_SIZE');
-    expect(client).toContain('const CLICKHOUSE_BATCH_SIZE');
-    expect(client).toContain('Math.floor(ENVIO_MAX_BATCH_SIZE / 5)');
   });
 
   it('includes singleton client pattern', () => {
@@ -135,7 +133,7 @@ describe('generateClickHouseClient', () => {
   it('includes auto-flush when batch size reached', () => {
     const client = generateClickHouseClient();
 
-    expect(client).toContain('if (batchEventCount >= CLICKHOUSE_BATCH_SIZE)');
+    expect(client).toContain('if (batchEventCount >= ENVIO_MAX_BATCH_SIZE)');
     expect(client).toContain('await flushBatch()');
   });
 
