@@ -22,8 +22,11 @@ CLICKHOUSE_DATABASE=your_database
 
 # ClickHouse Batching (Optional - defaults shown)
 MAX_BATCH_SIZE=5000                      # Events per batch before flush
-CLICKHOUSE_FLUSH_INTERVAL_MS=5000        # Flush interval in milliseconds
-CLICKHOUSE_BATCH_ENABLED=true            # Enable/disable batching
+
+# ClickHouse Reconciliation (Reorg Handling)
+CLICKHOUSE_RECONCILIATION_ENABLED=true   # Enable periodic state reconciliation (default: true)
+CLICKHOUSE_RECONCILIATION_INTERVAL_MS=60000  # Reconciliation check interval in ms (default: 60s)
+CLICKHOUSE_CONFIRMED_BLOCK_THRESHOLD=200     # Blocks below head considered safe from reorgs (default: 200)
 
 # Envio Performance Optimizations
 ENVIO_HASURA=false
