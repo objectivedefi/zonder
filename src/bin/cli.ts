@@ -255,27 +255,69 @@ program
           format: 'JSONEachRow',
         });
         const existingTables = (await result.json()) as Array<{ name: string }>;
+        const existingTableNames = new Set(existingTables.map((t: any) => t.name));
 
         if (existingTables.length > 0) {
-          if (!options.force) {
-            console.error('❌ Database already contains tables:');
-            existingTables.forEach((table: any) => {
-              console.error(`   - ${table.name}`);
-            });
-            console.log('');
-            console.log('💡 Options:');
-            console.log('   - Use --force flag to drop old tables: pnpm zonder migrate --force');
-            console.log('   - Drop existing tables manually before running migrate');
+          // Check if all schema tables exist
+          const allTablesExist = Array.from(schemaTableNames).every((tableName) =>
+            existingTableNames.has(tableName),
+          );
+          const noExtraTables = existingTables.every((table: any) =>
+            schemaTableNames.has(table.name),
+          );
+
+          if (allTablesExist && noExtraTables) {
+            // Perfect match - all schema tables exist, no extra tables
+            console.log('✅ All tables already exist and match schema');
+            console.log(`   Found ${existingTables.length} tables in database`);
             await client.close();
-            process.exit(1);
+            process.exit(0);
+          }
+
+          if (!options.force) {
+            // Schema mismatch - provide helpful guidance
+            const missingTables = Array.from(schemaTableNames).filter(
+              (name) => !existingTableNames.has(name),
+            );
+            const extraTables = existingTables.filter(
+              (table: any) => !schemaTableNames.has(table.name),
+            );
+
+            if (missingTables.length > 0 || extraTables.length > 0) {
+              console.error('❌ Schema mismatch detected:');
+              if (missingTables.length > 0) {
+                console.error(`\n   Missing tables (${missingTables.length}):`);
+                missingTables.slice(0, 5).forEach((name) => {
+                  console.error(`   - ${name}`);
+                });
+                if (missingTables.length > 5) {
+                  console.error(`   ... and ${missingTables.length - 5} more`);
+                }
+              }
+              if (extraTables.length > 0) {
+                console.error(`\n   Extra tables not in schema (${extraTables.length}):`);
+                extraTables.slice(0, 5).forEach((table: any) => {
+                  console.error(`   - ${table.name}`);
+                });
+                if (extraTables.length > 5) {
+                  console.error(`   ... and ${extraTables.length - 5} more`);
+                }
+              }
+              console.log('');
+              console.log('💡 Options:');
+              console.log('   - Use --force to drop extra tables and create missing ones');
+              console.log('   - Manually reconcile the schema differences');
+              await client.close();
+              process.exit(1);
+            }
           } else {
-            // Drop tables that are NOT in the new schema
+            // --force: Drop tables that are NOT in the new schema
             const tablesToDrop = existingTables.filter(
               (table: any) => !schemaTableNames.has(table.name),
             );
 
             if (tablesToDrop.length > 0) {
-              console.log('🗑️  Dropping old tables not in schema...\n');
+              console.log(`🗑️  Dropping ${tablesToDrop.length} old tables...\n`);
               const dropResults = await Promise.all(
                 tablesToDrop.map(async (table: any) => {
                   try {
@@ -289,13 +331,13 @@ program
                 }),
               );
 
-              dropResults.forEach((result) => {
-                if (result.success) {
-                  console.log(`   ✅ Dropped: ${result.name}`);
-                } else {
-                  console.error(`   ❌ Failed to drop ${result.name}:`, result.error);
-                }
-              });
+              const dropped = dropResults.filter((r) => r.success).length;
+              const failed = dropResults.filter((r) => !r.success);
+
+              console.log(`✅ Dropped ${dropped} tables`);
+              if (failed.length > 0) {
+                console.error(`❌ Failed to drop ${failed.length} tables`);
+              }
               console.log('');
             }
 
@@ -303,16 +345,12 @@ program
               schemaTableNames.has(table.name),
             );
             if (tablesToKeep.length > 0) {
-              console.log('✅ Keeping existing tables that are in schema:');
-              tablesToKeep.forEach((table: any) => {
-                console.log(`   - ${table.name}`);
-              });
-              console.log('');
+              console.log(`✅ Keeping ${tablesToKeep.length} existing tables\n`);
             }
           }
         }
       } catch (error: any) {
-        console.error('⚠️  Warning: Could not check for existing tables:', error.message);
+        console.error('⚠️  Could not check existing tables:', error.message);
         console.log('   Proceeding with migration...\n');
       }
 
