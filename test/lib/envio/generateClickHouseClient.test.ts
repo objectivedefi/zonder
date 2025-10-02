@@ -100,8 +100,8 @@ describe('generateClickHouseClient', () => {
   it('includes batch flush with parallel writes', () => {
     const client = generateClickHouseClient();
 
-    expect(client).toContain('const writePromises');
-    expect(client).toContain('await Promise.all(writePromises)');
+    expect(client).toContain('await Promise.all(');
+    expect(client).toContain('tablesToWrite.map(async (table)');
   });
 
   it('includes error handling in flushBatch', () => {
@@ -154,9 +154,9 @@ describe('generateClickHouseClient', () => {
   it('includes shutdown logging', () => {
     const client = generateClickHouseClient();
 
-    expect(client).toContain('Flushing remaining');
-    expect(client).toContain('events before shutdown');
-    expect(client).toContain('ClickHouse client closed');
+    expect(client).toContain('Flushing');
+    expect(client).toContain('remaining events');
+    expect(client).toContain('Connection closed');
   });
 
   it('includes error handling in shutdown', () => {
@@ -165,7 +165,7 @@ describe('generateClickHouseClient', () => {
     expect(client).toContain('try {');
     expect(client).toContain('await flushBatch()');
     expect(client).toContain('} catch (error)');
-    expect(client).toContain('Failed to flush remaining batch on shutdown');
+    expect(client).toContain('Failed to flush final batch');
   });
 
   it('includes SIGINT handler', () => {
@@ -188,24 +188,25 @@ describe('generateClickHouseClient', () => {
     const client = generateClickHouseClient();
 
     expect(client).toContain('console.log');
-    expect(client).toContain('ClickHouse client initialized for database');
+    expect(client).toContain('Connected to database');
   });
 
   it('includes batch flush logging', () => {
     const client = generateClickHouseClient();
 
-    expect(client).toContain('ClickHouse batch flushed');
-    expect(client).toContain('events across');
+    expect(client).toContain('Flushed');
+    expect(client).toContain('events to');
     expect(client).toContain('tables');
   });
 
   it('includes detailed error logging with event samples', () => {
     const client = generateClickHouseClient();
 
-    expect(client).toContain('ClickHouse insert failed for table');
-    expect(client).toContain('Events count');
-    expect(client).toContain('First event sample');
-    expect(client).toContain('JSON.stringify(events[0], null, 2)');
+    expect(client).toContain('Batch insert failed');
+    expect(client).toContain('Table:');
+    expect(client).toContain('Events:');
+    expect(client).toContain('Sample:');
+    expect(client).toContain('JSON.stringify');
   });
 
   it('parses JSON string data', () => {

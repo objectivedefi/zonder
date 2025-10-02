@@ -25,8 +25,9 @@ describe('generateEnvExample', () => {
 
     // Check ClickHouse batching settings
     expect(envContent).toContain('MAX_BATCH_SIZE=5000');
-    expect(envContent).toContain('CLICKHOUSE_FLUSH_INTERVAL_MS=5000');
-    expect(envContent).toContain('CLICKHOUSE_BATCH_ENABLED=true');
+    // Reconciliation settings
+    expect(envContent).toContain('CLICKHOUSE_RECONCILIATION_ENABLED=true');
+    expect(envContent).toContain('CLICKHOUSE_RECONCILIATION_INTERVAL_MS=60000');
 
     // Check Envio performance optimization settings
     expect(envContent).toContain('# Envio Performance Optimizations');
